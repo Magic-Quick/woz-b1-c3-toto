@@ -207,8 +207,14 @@ function buildScene() {
   const fireSprite = b.node('FireSprite', fireRoot, [0, 0, 0]); b.uiTransform(fireSprite, 1085, 593); b.sprite(fireSprite, spriteRef('scene/fire.png'), 0); b.opacity(fireSprite, 255);
   const lightFx = b.node('LightFx', fireRoot, [0, 0, 0], UI_LAYER, false); b.uiTransform(lightFx, 815, 703); b.sprite(lightFx, spriteRef('scene/light.png'), 1);
   // ThreatView component (on threatLayer)
+  // NOTE: lockViews must reference SaveTotoLockView COMPONENTS, not nodes (Cocos 3.x no auto-convert).
+  const lockViewCompIds = [];
+  for (const ln of lockIds) {
+    const lv = b.objs[ln]._components.find(c => b.objs[c.__id__].__type__ === scriptType('views/SaveTotoLockView')).__id__;
+    lockViewCompIds.push(lv);
+  }
   const threatViewComp = b.custom(scriptType('views/SaveTotoThreatView'), threatLayer, {
-    fireNode: b.ref(fireSprite), lockViews: lockIds.map(id => b.ref(id)),
+    fireNode: b.ref(fireSprite), lockViews: lockViewCompIds.map(id => b.ref(id)),
     cageRoot: b.ref(cageRoot), totoRoot: b.ref(totoRoot), lightFxNode: b.ref(lightFx),
   });
 
@@ -216,9 +222,11 @@ function buildScene() {
   const winBalRoot = b.node('WinBalanceRoot', slotLayer, [0, 95, 0]); b.uiTransform(winBalRoot, 960, 190);
   const balPanel = b.node('BalancePanel', winBalRoot, [-280, 0, 0]); b.uiTransform(balPanel, 258, 91); b.sprite(balPanel, spriteRef('ui/balance.png'), 0);
   const balLabel = b.node('BalanceLabel', balPanel, [10, 0, 0]); b.uiTransform(balLabel, 180, 60); b.label(balLabel, '555000', 36);
+  const balLabelComp = b.objs[balLabel]._components.find(c => b.objs[c.__id__].__type__ === 'cc.Label').__id__;
   const winPanel = b.node('WinPanel', winBalRoot, [120, 0, 0]); b.uiTransform(winPanel, 554, 382); b.sprite(winPanel, spriteRef('ui/win.png'), 0);
   const winTitle = b.node('WinTitleLabel', winPanel, [0, 120, 0]); b.uiTransform(winTitle, 300, 60); b.label(winTitle, 'WIN', 48);
   const winValue = b.node('WinValueLabel', winPanel, [0, -40, 0]); b.uiTransform(winValue, 400, 60); b.label(winValue, '10,000,000', 44);
+  const winValueLabelComp = b.objs[winValue]._components.find(c => b.objs[c.__id__].__type__ === 'cc.Label').__id__;
 
   // Slot root with SaveTotoSlotController
   const slotRoot = b.node('Slot', slotLayer, [0, -430, 0]); b.uiTransform(slotRoot, 960, 490);
@@ -260,8 +268,14 @@ function buildScene() {
     b.objs[basketViewComp].glow = b.ref(glow);
     basketNodeIds.push(bn);
   }
+  // NOTE: basketViews must reference SaveTotoBasketView COMPONENTS, not nodes.
+  const basketViewCompIds = [];
+  for (const bn of basketNodeIds) {
+    const bv = b.objs[bn]._components.find(c => b.objs[c.__id__].__type__ === scriptType('views/SaveTotoBasketView')).__id__;
+    basketViewCompIds.push(bv);
+  }
   const bonusViewComp = b.custom(scriptType('views/SaveTotoBonusView'), bonusRoot, {
-    bonusRoot: b.ref(bonusRoot), basketViews: basketNodeIds.map(id => b.ref(id)), instructionLabel: b.ref(instr),
+    bonusRoot: b.ref(bonusRoot), basketViews: basketViewCompIds.map(id => b.ref(id)), instructionLabel: b.ref(instr),
   });
   // SaveTotoSlotController on slotRoot
   const slotCtrlComp = b.custom(scriptType('Slot/SaveTotoSlotController'), slotRoot, {
@@ -270,7 +284,7 @@ function buildScene() {
   });
   // SaveTotoSlotView — place on slotLayer (logical); refs slotController/balance/win
   const slotViewComp = b.custom(scriptType('views/SaveTotoSlotView'), slotLayer, {
-    slotController: b.ref(slotCtrlComp), balanceLabel: b.ref(balLabel), winLabel: b.ref(winValue),
+    slotController: b.ref(slotCtrlComp), balanceLabel: b.ref(balLabelComp), winLabel: b.ref(winValueLabelComp),
   });
 
   // ── HudLayer ──
@@ -297,11 +311,12 @@ function buildScene() {
   const endLogo = b.node('EndLogo', endCardLayer, [0, 500, 0]); b.uiTransform(endLogo, 395, 296); b.sprite(endLogo, spriteRef('logos/logo_woz_slots.png'), 1);
   const endToto = b.node('EndTotoRoot', endCardLayer, [0, 100, 0]); b.uiTransform(endToto, 378, 672); b.sprite(endToto, spriteRef('characters/toto-body.png'), 1);
   const endWin = b.node('EndWinLabel', endCardLayer, [0, -250, 0]); b.uiTransform(endWin, 700, 80); b.label(endWin, '10,000,000', 64);
+  const endWinLabelComp = b.objs[endWin]._components.find(c => b.objs[c.__id__].__type__ === 'cc.Label').__id__;
   const playNow = b.node('PlayNowButton', endCardLayer, [0, -700, 0]); b.uiTransform(playNow, 509, 168); b.sprite(playNow, spriteRef('ui/spin.png'), 1); b.button(playNow, false);
   const playNowLabel = b.node('CtaLabel', playNow, [0, 0, 0]); b.uiTransform(playNowLabel, 300, 60); b.label(playNowLabel, 'PLAY NOW', 48);
   const playNowBtnComp = b.objs[playNow]._components.find(c => b.objs[c.__id__].__type__ === 'cc.Button').__id__;
   const endCardViewComp = b.custom(scriptType('views/SaveTotoEndCardView'), endCardLayer, {
-    root: b.ref(endCardLayer), endTotoRoot: b.ref(endToto), endWinLabel: b.ref(endWin), playNowButton: b.ref(playNowBtnComp),
+    root: b.ref(endCardLayer), endTotoRoot: b.ref(endToto), endWinLabel: b.ref(endWinLabelComp), playNowButton: b.ref(playNowBtnComp),
   });
 
   // ── System nodes (under scene) ──

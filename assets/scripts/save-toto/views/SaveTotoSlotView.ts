@@ -26,9 +26,9 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
     @property(Label)
     public balanceLabel: Label = null!;
 
-    /** WIN — фиксированный visual label; не главный counter. */
+    /** WIN — фиксированный visual label (OI-204); не записывается кодом, optional. */
     @property(Label)
-    public winLabel: Label = null!;
+    public winLabel: Label | null = null;
 
     public showIdleReel(_result: SaveTotoScriptedReelResult): void {
         // Idle reel: SlotController уже сгенерировал начальные элементы в start().

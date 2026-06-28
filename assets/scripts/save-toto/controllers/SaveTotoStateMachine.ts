@@ -96,6 +96,13 @@ export class SaveTotoStateMachine extends Component {
         this.store = store;
         this.config = this.gameConfig.getConfig();
         this.lockUnlockController = new SaveTotoLockUnlockController(this.config.threat.lockOrder);
+
+        // Регистрация lock views из threatView в lockUnlockController,
+        // чтобы removeLockByPickIndex анимировал замок через view (OI-105).
+        for (const lockView of this.threatView.lockViews) {
+            this.lockUnlockController.registerLockView(lockView.lockId, lockView);
+        }
+
         this.spinsController.setSpins(1);
         this.slotView.setBalanceValue(this.config.payout.startingBalance);
     }

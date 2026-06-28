@@ -2,12 +2,28 @@
  * Save Toto — движение колонки (перенесён из slot-game/Slot/ColumnMover.ts).
  * Plain-класс (не Component); обновляется из SaveTotoSlotColumn.update().
  * Событие остановки использует SaveTotoSlotEvents.COLUMN_MOVEMENT_COMPLETE.
+ *
+ * FIX 2026-06-28:
+ * - если movementEffect не назначен, update() больше не падает на this.effect.apply(...)
+ * - используется linear fallback interpolation (тот же результат, что SaveTotoLinearMoveEffect)
  */
 
 import { Node, Vec3 } from 'cc';
 import { SaveTotoElementSpawner } from './Elements/SaveTotoElementSpawner';
 import { SaveTotoMovementEffectBehaviour } from './ScrollEffects/SaveTotoMovementEffectBehaviour';
 import { SaveTotoSlotEvents } from '../events/SaveTotoEvents';
+
+/**
+ * Fallback linear interpolation, используемый когда movementEffect не назначен.
+ */
+function linearInterpolate(startPos: Vec3, targetPos: Vec3, t: number): Vec3 {
+    const clamped = Math.min(Math.max(t, 0), 1);
+    return new Vec3(
+        startPos.x + (targetPos.x - startPos.x) * clamped,
+        startPos.y + (targetPos.y - startPos.y) * clamped,
+        startPos.z + (targetPos.z - startPos.z) * clamped
+    );
+}
 
 export class SaveTotoColumnMover {
     private totalElements: number = 5;
@@ -45,7 +61,16 @@ export class SaveTotoColumnMover {
                     const startPos = this.startPositions[index];
                     const targetPos = this.targetPositions[index];
 
-                    const currentPos = this.effect.apply(startPos, targetPos, progress, new Vec3(startPos.x, startPos.y, startPos.z), this.moveDuration);
+                    const currentPos = this.effect
+                        ? this.effect.apply(
+                            startPos,
+                            targetPos,
+                            progress,
+                            new Vec3(startPos.x, startPos.y, startPos.z),
+                            this.moveDuration
+                        )
+                        : linearInterpolate(startPos, targetPos, progress);
+
                     element.setPosition(currentPos);
                 }
             });

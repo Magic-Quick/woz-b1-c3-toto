@@ -1,11 +1,9 @@
 /**
  * Save Toto — bootstrap (адаптирован из slot-game/controllers/Bootstrap.ts).
  *
- * АДАПТАЦИИ (ARCHITECTURE.md §5, OI-407):
- *  - НЕТ generic CTA-after-spins: CTA показывается только state machine после Payout.
- *  - Инициализирует scatter evaluator и forced cell rules для scripted 3-scatter результата (OI-403).
- *  - Запускает SaveTotoStateMachine.startFlow().
- *  - Store adapter изолирует redirect (OI-004).
+ * Optional components (VFXSpawner, CTAScreen, WinAnimationConfiguration,
+ * MovementEffect) больше не шумят warning'ами при отсутствии — они не обязательны
+ * для базового flow и не должны засорять preview log.
  */
 
 import { _decorator, Component, Node } from 'cc';
@@ -85,8 +83,6 @@ export class SaveTotoBootstrap extends Component {
         this.initStateMachine();
 
         this.logger.success('Инициализация завершена успешно');
-
-        // Старт flow после slot core start() (отложенный на следующий кадр).
         this.scheduleOnce(() => this.stateMachine.startFlow(), 0);
     }
 
@@ -99,17 +95,26 @@ export class SaveTotoBootstrap extends Component {
         this.validator.validate(this.rewardController, 'SaveTotoRewardController', true);
         this.validator.validate(this.elementConfiguration, 'SaveTotoElementConfiguration', true);
         this.validator.validate(this.forcedManagerNode?.getComponent(SaveTotoForcedSpawnManager) as any, 'ForcedSpawnManager', true);
-        this.validator.validate(this.ctaScreen, 'SaveTotoCTAScreen', false);
-        this.validator.validate(this.vfxSpawner, 'SaveTotoVFXSpawner', false);
-        this.validator.validate(this.winAnimationConfiguration, 'SaveTotoWinAnimationConfiguration', false);
-        this.validator.validate(this.columnMovementEffect, 'SaveTotoMovementEffectBehaviour', false);
+
+        // Optional components: validate only if assigned, stay silent if absent.
+        if (this.ctaScreen) {
+            this.validator.validate(this.ctaScreen, 'SaveTotoCTAScreen', true);
+        }
+        if (this.vfxSpawner) {
+            this.validator.validate(this.vfxSpawner, 'SaveTotoVFXSpawner', true);
+        }
+        if (this.winAnimationConfiguration) {
+            this.validator.validate(this.winAnimationConfiguration, 'SaveTotoWinAnimationConfiguration', true);
+        }
+        if (this.columnMovementEffect) {
+            this.validator.validate(this.columnMovementEffect, 'SaveTotoMovementEffectBehaviour', true);
+        }
 
         this.validator.printReport();
         return !this.validator.hasErrors();
     }
 
     private injectDependencies(): void {
-        // Slot core зависимости.
         this.slotController.setDependencies(
             this.elementConfiguration,
             this.winAnimationConfiguration || undefined,
@@ -117,7 +122,6 @@ export class SaveTotoBootstrap extends Component {
             this.forcedManagerNode || undefined
         );
 
-        // Spin button — input-only (без slot/spins зависимостей).
         this.rewardController.setDependencies(
             this.slotController,
             this.ctaScreen || undefined,
@@ -132,10 +136,6 @@ export class SaveTotoBootstrap extends Component {
         this.slotController.initScatterEvaluator(config.reel.scatterElementId, config.reel.scatterRequired);
     }
 
-    /**
-     * Построить forced cell rules из scripted reel result, чтобы спин гарантированно
-     * остановился на раскладе с 3 scatter Тото (OI-403).
-     */
     private initForcedScriptedResult(): void {
         const config = this.gameConfig.getConfig();
         const forcedManager = this.forcedManagerNode?.getComponent(SaveTotoForcedSpawnManager);
@@ -144,7 +144,7 @@ export class SaveTotoBootstrap extends Component {
             return;
         }
 
-        const scripted = config.reel.scriptedResult; // column-major [col][row]
+        const scripted = config.reel.scriptedResult;
         const groupedBySymbol = new Map<number, [number, number][]>();
 
         for (let col = 0; col < scripted.length; col++) {

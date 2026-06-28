@@ -1,10 +1,13 @@
 /**
  * Save Toto — view HUD-слоя (implements SaveTotoHudView).
- * SPIN и CTA кнопки. CTA активен только после Payout (OI-407).
+ *
+ * CTA pulse по возможности делегируется компоненту SaveTotoCtaPulseAnimation
+ * на CtaButton node; при его отсутствии используется tween fallback.
  */
 
 import { _decorator, Component, Button, Node, tween, Vec3 } from 'cc';
 import { SaveTotoHudView as ISaveTotoHudView } from '../interfaces/SaveTotoViews';
+import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
 
 const { ccclass, property } = _decorator;
 
@@ -37,9 +40,15 @@ export class SaveTotoHudView extends Component implements ISaveTotoHudView {
         if (this.ctaButton) this.ctaButton.interactable = active;
     }
 
-    /** Pulse-эффект CTA (вызывается state machine при показе end-card). */
     public pulseCta(): void {
         if (!this.ctaButtonNode) return;
+
+        const pulseComponent = this.ctaButtonNode.getComponent(SaveTotoCtaPulseAnimation);
+        if (pulseComponent) {
+            pulseComponent.play();
+            return;
+        }
+
         tween(this.ctaButtonNode)
             .to(0.4, { scale: new Vec3(1.08, 1.08, 1.08) }, { easing: 'sineInOut' })
             .to(0.4, { scale: new Vec3(1, 1, 1) }, { easing: 'sineInOut' })

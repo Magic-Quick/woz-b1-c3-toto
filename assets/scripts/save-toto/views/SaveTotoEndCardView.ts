@@ -1,10 +1,12 @@
 /**
  * Save Toto — view end-card слоя.
- * Packshot overlay: лого, Тото, big win label, CTA. Показывается после Payout.
- * Tap только по CTA-кнопке; tap-anywhere выключен (OI-205).
+ *
+ * Теперь умеет запускать CTA pulse на реальной end-card кнопке PlayNowButton,
+ * если на её node присутствует SaveTotoCtaPulseAnimation.
  */
 
 import { _decorator, Component, Node, Label, tween, UIOpacity, Button } from 'cc';
+import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
 
 const { ccclass, property } = _decorator;
 
@@ -28,6 +30,7 @@ export class SaveTotoEndCardView extends Component {
 
     public hideImmediate(): void {
         if (this.root) this.root.active = false;
+        this.stopCtaPulse();
     }
 
     public async show(finalWin: number): Promise<void> {
@@ -42,16 +45,30 @@ export class SaveTotoEndCardView extends Component {
         return new Promise<void>((resolve) => {
             tween(op)
                 .to(0.5, { opacity: 255 })
-                .call(() => resolve())
+                .call(() => {
+                    this.playCtaPulse();
+                    resolve();
+                })
                 .start();
         });
     }
 
     public hide(): void {
+        this.stopCtaPulse();
         if (this.root) this.root.active = false;
     }
 
     public getPlayNowButton(): Button {
         return this.playNowButton;
+    }
+
+    private playCtaPulse(): void {
+        const pulse = this.playNowButton?.node?.getComponent(SaveTotoCtaPulseAnimation);
+        pulse?.play();
+    }
+
+    private stopCtaPulse(): void {
+        const pulse = this.playNowButton?.node?.getComponent(SaveTotoCtaPulseAnimation);
+        pulse?.stopAndReset();
     }
 }

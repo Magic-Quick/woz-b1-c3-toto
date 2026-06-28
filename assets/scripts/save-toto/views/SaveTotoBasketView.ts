@@ -1,12 +1,14 @@
 /**
  * Save Toto — view одной корзины бонуса (для SaveTotoBasket.prefab).
  *
- * MVP: без open-basket sprite (OI-106). Selected state через scale/glow/label.
- * Tween-реализация; мигрирует на `basket_selected.anim` (ANIMATION_STRATEGY.md §5).
+ * Останавливает idle pulse и по возможности делегирует selection animation
+ * компоненту SaveTotoBasketSelectedAnimation; при её отсутствии использует tween fallback.
  */
 
 import { _decorator, Component, Button, Label, Node, tween, Vec3, UIOpacity } from 'cc';
 import { SaveTotoBonusReward, SaveTotoRewardKind } from '../types';
+import { SaveTotoAutoPulse } from '../animations/SaveTotoAutoPulse';
+import { SaveTotoBasketSelectedAnimation } from '../animations/SaveTotoBasketSelectedAnimation';
 
 const { ccclass, property } = _decorator;
 
@@ -51,9 +53,18 @@ export class SaveTotoBasketView extends Component {
         this.opened = true;
         if (this.basketButton) this.basketButton.interactable = false;
 
+        const idlePulse = this.getComponent(SaveTotoAutoPulse);
+        idlePulse?.stopAndReset();
+
         if (this.rewardLabel) {
             this.rewardLabel.string = this.formatReward(reward);
             this.rewardLabel.node.active = true;
+        }
+
+        const animationComponent = this.getComponent(SaveTotoBasketSelectedAnimation);
+        if (animationComponent) {
+            await animationComponent.play();
+            return;
         }
 
         return new Promise<void>((resolve) => {

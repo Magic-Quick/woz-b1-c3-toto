@@ -1,15 +1,15 @@
 /**
  * Save Toto — view threat-слоя (implements SaveTotoThreatView).
  *
- * Клетка (one-piece, OI-104), Тото, замки, огонь, packshot transition.
- * Огонь: 4 уровня через scale/alpha одной текстуры (OI-203).
- * Tween-реализация; мигрирует на `fire_level_*_to_*.anim` / `packshot_intro.anim`.
+ * Packshot transition по возможности делегируется компоненту
+ * SaveTotoPackshotIntroAnimation на CageRoot; при его отсутствии используется tween fallback.
  */
 
 import { _decorator, Component, Node, tween, Vec3, UIOpacity } from 'cc';
 import { SaveTotoThreatView as ISaveTotoThreatView } from '../interfaces/SaveTotoViews';
 import { SaveTotoFireLevel } from '../types';
 import { SaveTotoLockView } from './SaveTotoLockView';
+import { SaveTotoPackshotIntroAnimation } from '../animations/SaveTotoPackshotIntroAnimation';
 
 const { ccclass, property } = _decorator;
 
@@ -41,8 +41,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.currentFireLevel = level;
         if (!this.fireNode) return;
 
-        // F3=1.0 scale/1.0 alpha, F0=hidden. Линейная интерполяция по 4 уровням.
-        const t = level / 3; // 0..1
+        const t = level / 3;
         const scale = 0.4 + t * 0.6;
         const opacityVal = level === 0 ? 0 : 80 + t * 175;
 
@@ -66,7 +65,12 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     }
 
     public async playPackshotTransition(): Promise<void> {
-        // Клетка НЕ открывается дверцей (OI-104): fade клетки + появление света.
+        const packshotAnimation = this.cageRoot?.getComponent(SaveTotoPackshotIntroAnimation);
+        if (packshotAnimation) {
+            await packshotAnimation.play();
+            return;
+        }
+
         return new Promise<void>((resolve) => {
             if (this.lightFxNode) {
                 this.lightFxNode.active = true;

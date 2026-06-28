@@ -1,14 +1,8 @@
 /**
- * Save Toto — главная state machine (ARCHITECTURE.md §7, GDD §4).
+ * Save Toto — главная state machine.
  *
- * Оркестрирует весь flow: Preload → Intro → SpinReady → Spinning → SpinResult →
- * BonusIntro → BonusPick → UnlockSequence → Payout → EndCard → StoreRedirect.
- *
- * Контракт разделения (ARCHITECTURE.md §13, §15):
- *  - State machine НЕ содержит visual tween curves; вызывает только методы view.
- *  - Все числа — из config, не magic numbers.
- *  - Input блокируется во время animation lock через выключение кнопок.
- *  - CTA показывается только после Payout (OI-407), не generic after-spins.
+ * CTA pulse/show больше не завязан на HudLayer/CtaButton: реальная кнопка клика
+ * находится на EndCard PlayNowButton, и её pulse запускается из EndCardView.show().
  */
 
 import { _decorator, Component, Button } from 'cc';
@@ -90,15 +84,12 @@ export class SaveTotoStateMachine extends Component {
     private config: SaveTotoConfig | null = null;
     private logger = createSaveTotoLogger('SaveTotoStateMachine');
 
-    /** Вызывается Bootstrap после wiring. */
     public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter): void {
         this.analytics = analytics;
         this.store = store;
         this.config = this.gameConfig.getConfig();
         this.lockUnlockController = new SaveTotoLockUnlockController(this.config.threat.lockOrder);
 
-        // Регистрация lock views из threatView в lockUnlockController,
-        // чтобы removeLockByPickIndex анимировал замок через view (OI-105).
         for (const lockView of this.threatView.lockViews) {
             this.lockUnlockController.registerLockView(lockView.lockId, lockView);
         }
@@ -107,7 +98,6 @@ export class SaveTotoStateMachine extends Component {
         this.slotView.setBalanceValue(this.config.payout.startingBalance);
     }
 
-    /** Точка старта flow (вызывается Bootstrap). */
     public startFlow(): void {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_GAME_START, payload: { projectId: this.config?.projectId } });
         this.enterIntro();
@@ -116,8 +106,6 @@ export class SaveTotoStateMachine extends Component {
     public getState(): SaveTotoState {
         return this.state;
     }
-
-    // ───────────────────────── States ─────────────────────────
 
     private enterIntro(): void {
         this.state = SaveTotoState.Intro;
@@ -146,7 +134,6 @@ export class SaveTotoStateMachine extends Component {
         this.spinsController.removeSpins(1);
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_CLICK, payload: { tapIndex: 1 } });
 
-        // SM-driven spin через SlotView (ARCHITECTURE.md §12).
         this.slotController.node.once(SaveTotoSlotEvents.SPIN_COMPLETE, (payload: SaveTotoSpinCompletePayload) => {
             this.onSpinComplete(payload);
         });
@@ -157,7 +144,6 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.SpinResult;
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_RESULT, payload: { scatters: payload.scatterCount } });
 
-        // Scatter должен триггерить бонус (scripted).
         if (!payload.triggersBonus) {
             this.logger.warn('Spin не дал scatter-триггер; fallback в bonus по scripted контракту.');
         }
@@ -203,9 +189,8 @@ export class SaveTotoStateMachine extends Component {
         await this.bonusView.openBasket(basketIndex, reward);
         this.analytics.send({ name: SaveTotoEvents.EVT_REWARD_REVEALED, payload: { pickIndex, rewardId: reward.rewardId } });
 
-        // Снять замок и снизить огонь.
         const removedLock = await this.lockUnlockController.removeLockByPickIndex(pickIndex);
-        this.analytics.send({ name: SaveTotoEvents.EVT_LOCK_REMOVED, payload: { lockIndex: pickIndex, locksRemaining: this.lockUnlockController.getRemainingLocks() } });
+        this.analytics.send({ name: SaveTotoEvents.EVT_LOCK_REMOVED, payload: { lockIndex: pickIndex, lockId: removedLock, locksRemaining: this.lockUnlockController.getRemainingLocks() } });
 
         const newFireLevel = Math.max(0, 3 - (pickIndex + 1));
         this.threatView.setFireLevel(newFireLevel as 0 | 1 | 2 | 3);
@@ -239,8 +224,7 @@ export class SaveTotoStateMachine extends Component {
 
     private async enterEndCard(finalWin: number): Promise<void> {
         this.state = SaveTotoState.EndCard;
-        this.hudView.showCtaButton(true);
-        this.hudView.pulseCta();
+        this.hudView.showCtaButton(false);
         await this.endCardView.show(finalWin);
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_CTA_SHOWN, payload: { finalWin } });
 

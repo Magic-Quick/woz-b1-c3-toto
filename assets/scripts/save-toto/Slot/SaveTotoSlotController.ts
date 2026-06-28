@@ -1,13 +1,9 @@
 /**
- * Save Toto — главный контроллер слота (адаптирован из slot-game/Slot/SlotController.ts).
+ * Save Toto — главный контроллер слота.
  *
- * АДАПТАЦИИ:
- *  - Сетка 5×3 (5 колонок, 3 видимых ряда).
- *  - Scatter bridge: после остановки reels вычисляется scatter-count через
- *    SaveTotoScatterEvaluator; результат доступен через getScatterResult() и
- *    передаётся в payload события SPIN_COMPLETE (ARCHITECTURE.md §10).
- *  - События используют SaveTotoSlotEvents (исправлена строковая inconsisten­cy 'columnMovementComplete').
- *  - Line wins (WIN_DETECTED) вторичны; scatter — основной gate бонуса.
+ * DIAGNOSTIC 2026-06-29:
+ * Добавлены info-логи для трассировки spin completion цепочки:
+ * startAllColumnsMovement -> checkSpinCompletion -> onSpinComplete.
  */
 
 import { _decorator, Component, Node, CCFloat, CCInteger } from 'cc';
@@ -27,7 +23,6 @@ import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
 
-/** Payload события SPIN_COMPLETE (scatter info для state machine). */
 export interface SaveTotoSpinCompletePayload {
     visibleElements: IElementType[][];
     scatterSymbol: 'toto';
@@ -83,7 +78,6 @@ export class SaveTotoSlotController extends Component {
         this.forcedManagerNode = forcedManagerNode || null;
     }
 
-    /** Настроить scatter-оценщик (вызывается Bootstrap после setDependencies). */
     public initScatterEvaluator(scatterElementId: number, scatterRequired: number): void {
         this.scatterEvaluator.init(scatterElementId, scatterRequired);
     }
@@ -100,7 +94,6 @@ export class SaveTotoSlotController extends Component {
         }
 
         this.centralizedSpawner = new SaveTotoCentralizedElementSpawner();
-
         this.centralizedSpawner.init(
             this.elementConfiguration.getAllElementTypes(),
             this.elementConfiguration.getAllBonusElementTypes(),
@@ -144,13 +137,13 @@ export class SaveTotoSlotController extends Component {
         this.stopAllWinAnimations();
         this.resetAlphaChange();
         const targetSpin = this.currentSpinIndex + 1;
+        this.logger.info(`startAllColumnsMovement spin=${targetSpin}`);
         this.forcedSpawnManager?.applyForSpin(targetSpin);
         this.node.emit(SaveTotoSlotEvents.SPIN_COMPLETE + '-started');
         this.columns.forEach((columnNode, index) => {
             const slotColumn = columnNode.getComponent(SaveTotoSlotColumn);
             if (slotColumn) {
-                this.scheduleOnce(() => slotColumn.startColumnMovement(),
-                    Math.max(this.startIntervalSec, 0) * index);
+                this.scheduleOnce(() => slotColumn.startColumnMovement(), Math.max(this.startIntervalSec, 0) * index);
             }
         });
     }
@@ -167,7 +160,9 @@ export class SaveTotoSlotController extends Component {
     }
 
     private checkSpinCompletion(): void {
-        const allStopped = this.columns.every(col => !col.getComponent(SaveTotoSlotColumn)?.isColumnMoving());
+        const states = this.columns.map((col, idx) => ({ idx, moving: col.getComponent(SaveTotoSlotColumn)?.isColumnMoving() ?? false }));
+        const allStopped = states.every(s => !s.moving);
+        this.logger.info(`checkSpinCompletion allStopped=${allStopped} states=${JSON.stringify(states)}`);
         if (allStopped) {
             this.onSpinComplete();
         }
@@ -175,16 +170,13 @@ export class SaveTotoSlotController extends Component {
 
     private onSpinComplete(): void {
         const visibleElements = this.getAllVisibleElements();
-
-        // Scatter evaluation (PRIMARY gate).
         this.lastScatterResult = this.scatterEvaluator.evaluate(visibleElements);
+        this.logger.info(`onSpinComplete scatterCount=${this.lastScatterResult.count} triggersBonus=${this.lastScatterResult.triggersBonus}`);
 
-        // Line wins (SECONDARY).
         const winResults = this.winChecker.checkWinLines(visibleElements);
         if (winResults.length > 0) {
             this.animateWinElements(winResults);
             this.handleAlphaChange(winResults);
-
             const totalWinValue = winResults.reduce((sum, result) => sum + result.winValue, 0);
             this.node.emit(SaveTotoSlotEvents.WIN_DETECTED, winResults, totalWinValue);
         } else {
@@ -285,7 +277,6 @@ export class SaveTotoSlotController extends Component {
         }
     }
 
-    /** Последний результат scatter-оценки (для state machine). */
     public getScatterResult(): SaveTotoScatterResult {
         return this.lastScatterResult;
     }

@@ -111,13 +111,13 @@ date: '2026-06-28'
 
 | ID | Статус | Задача |
 |---|---|---|
-| `OI-501` | Open | Импорт `assets/scripts/save-toto/**` в Cocos для генерации `.ts.meta` (UUID скриптов). Без этого невозможно привязать компоненты в .scene/.prefab. |
-| `OI-502` | Open | Создание prefabs `assets/prefabs/save-toto/**` по `scene-blueprint.json` (SaveTotoSlotSymbol×5, SaveTotoBasket, SaveTotoLock, SaveTotoCtaButton, SaveTotoMoneyBurst). `.meta` создаёт редактор. |
-| `OI-503` | Open | Сборка `assets/scene.scene` по blueprint: layers, template-compatible `Slot/Columns` (5), threat/slot/hud/fx/endcard layers, prefabs instances. |
-| `OI-504` | Open | Explicit wiring (serialized properties) по `scene-blueprint.json` → `wiring`. Заполнить ссылки в Inspector: Bootstrap, StateMachine, SlotController.columns[5], ThreatView.lockViews[3], BonusView.basketViews[6], SlotView refs. |
-| `OI-505` | Open | `SaveTotoElementConfiguration` Inspector: elementTypes (Oz=0, Key=1, Drop=2, Basket=3) + bonusElementTypes (Toto=4, isScatter=true) с prefab-ссылками на symbol prefabs. |
-| `OI-506` | Open | Создание `.anim` clips `assets/animations/save-toto/**` и привязка к prefabs через `Animation` component (ANIMATION_STRATEGY.md). MVP-view-твины должны мигрировать на `.anim`. |
-| `OI-507` | Open | Visual QA против `.plbx/reference/scene.png` после сборки сцены; сверка layout из SCENE_SETUP.md §5. |
+| `OI-501` | Done | Импорт `assets/scripts/save-toto/**` в Cocos — `.ts.meta` сгенерированы (51 файл). |
+| `OI-502` | Done | Создание 5 symbol-prefabs `assets/prefabs/save-toto/slot/SaveTotoSymbol{Oz,Key,Drop,Basket,Toto}.prefab` через `tools/build-scene.mjs`. Требуется Cocos refresh для генерации `.prefab.meta` (UUID). |
+| `OI-503` | Done | Сборка `assets/scene.scene` по blueprint: 6 layers, threat (cage/toto/3 locks/fire/light), slot (5 SaveTotoSlotColumn + SaveTotoSlotController), bonus (6 BasketView+Button+Glow+RewardLabel), hud, fx, endcard, System nodes. 86 узлов, 19 custom-скриптов. |
+| `OI-504` | Done (partial) | Explicit wiring выполнен в `tools/build-scene.mjs`: Bootstrap→StateMachine/Slot/Spins/Reward/ElementConfig/ForcedMgr/CTAScreen; StateMachine→все views/ctaButton; SlotController.columns[5]; ThreatView.fireNode/lockViews[3]/cage/toto/light; BonusView.basketViews[6]; BasketView.basketButton/rewardLabel/glow; SlotView/HudView/EndCardView refs. НЕ завязано: ElementConfiguration prefab-ссылки (OI-505), CTAScreen.rewardAmount (опционально). |
+| `OI-505` | Pending (auto) | `ElementConfiguration` prefab-wiring: build-скрипт двухпроходный — после Cocos refresh (импорт prefabs → `.prefab.meta`) повторный запуск `node tools/build-scene.mjs` автоматически заполнит elementTypes (Oz/Key/Drop/Basket) + bonusElementTypes (Toto scatter). |
+| `OI-506` | Open | Создание `.anim` clips `assets/animations/save-toto/**` и привязка к prefabs через `Animation` component (ANIMATION_STRATEGY.md). MVP-view-твины (в SaveToto*View) должны мигрировать на `.anim`. |
+| `OI-507` | Open | Visual QA против `.plbx/reference/scene.png` после reload сцены в Cocos; сверка layout из SCENE_SETUP.md §5. |
 | `OI-508` | Open | Runtime-проверка scripted flow: spin → 3 scatter → bonus → 3 picks → locks/fire → packshot → balance count → CTA → store redirect. |
 
 ### 8.4. Замечание по сцене

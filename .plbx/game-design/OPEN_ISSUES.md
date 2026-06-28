@@ -51,11 +51,12 @@ date: '2026-06-28'
 |---|---|---|---|---|
 | `OI-301` | Closed for MVP | Open basket sprite | Не нужен. Корзины открываем/выбираем лёгкой анимацией самого ассета. | `Basket.prefab` без alternate sprite |
 | `OI-302` | Closed for MVP | Standalone key sprite | Не нужен. Без пролётов ключей; только animation open lock. | Удалить key-flight из обязательного flow |
-| `OI-303` | Open | Coin/bonus particles | Частицы надо будет сгенерировать самим. | Запланировать generated particle/prefab task |
+| `OI-303` | Partially addressed | Coin/bonus particles | Money sprites перенесены из reference; particles/`.anim`/prefabs нужно создать самим. | Запланировать generated particle/prefab/animation task |
 | `OI-304` | Accepted assumption | CTA button | CTA можно взять из reference как визуальный паттерн; production prefab делаем свой. | Не копировать reference assets без решения |
 | `OI-305` | Closed for MVP | Door/open cage layer | Не нужен. Packshot transition вместо door open. | `cage.png` остаётся static threat layer |
 | `OI-306` | Closed for MVP | Bonus reward labels | Runtime labels на Bodega Sans достаточно. | Reward text в `Basket.prefab`/floating reward |
 | `OI-307` | Open later | Sound pack | Звуки должны быть уникальными; пользователь нарежет позже. | Не брать `other-assets` audio assets production |
+| `OI-308` | Accepted plan | Автоматическая генерация `.anim` clips | `.anim` удобнее хардкод-твинов для visual motion; генерировать через Cocos/editor workflow, `.meta` вручную не создавать. | Добавить `ANIMATION_STRATEGY.md` и подключать clips к prefabs |
 
 ## 5. Вопросы по template/reference migration
 
@@ -80,6 +81,6 @@ date: '2026-06-28'
 ## 7. Definition of done для закрытия open issues
 
 - `OI-001`–`OI-008`, `OI-101`–`OI-107`, `OI-201`–`OI-206`, `OI-301`–`OI-307`, `OI-401`–`OI-407` отражены в GDD/Architecture/Scene docs.
-- Открытыми остаются только вопросы, требующие будущего client/audio/VFX review: финальный paytable, финальные values, particles, sound pack, landscape.
+- Открытыми остаются только вопросы, требующие будущего client/audio/VFX review: финальный paytable, финальные values, particles/`.anim` implementation, sound pack, landscape.
 - QA checklist обновлён под принятые решения.
 - GDD и scene setup синхронизированы после изменений.

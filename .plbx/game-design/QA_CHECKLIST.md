@@ -118,3 +118,13 @@ date: "2026-06-28"
 - [ ] Slot symbol prefabs подключены в `ElementConfiguration`.
 - [ ] `SaveTotoCtaButton.prefab` активен только на EndCard.
 - [ ] `.meta` для prefabs созданы Cocos/editor workflow, не вручную.
+
+
+## 13. Проверка animation strategy
+
+- [ ] `.anim` clips находятся в `assets/animations/save-toto/**`.
+- [ ] `.anim.meta` созданы Cocos/editor workflow, не вручную.
+- [ ] `SPIN`, basket, lock, fire, CTA и money FX animations запускаются через view methods.
+- [ ] `SaveTotoStateMachine` не содержит hardcoded visual tween curves.
+- [ ] Money sprites используются из `assets/art/fx/money/**` и `assets/art/ui/rewards/**`, не из `.plbx/reference/**`.
+- [ ] Money sprites не ломают bundle size и визуально совместимы с Save Toto style.

@@ -65,7 +65,7 @@ System
 | `ElementConfiguration` | `slot-game/assets/scripts/Slot/Elements/ElementConfiguration.ts` | Использовать Inspector-конфигурацию symbols/scatter |
 | `ForcedSpawnManager` | `slot-game/assets/scripts/Slot/managers/ForcedSpawnManager.ts` + `other-assets/scripts/Slot/managers/ForcedSpawnManager.ts` | Базовый API из template, улучшенную версию взять из `other-assets` с `hasRulesForSpin()` и фильтрацией forced lines |
 | `WinChecker` | `slot-game/assets/scripts/Slot/WinChecker.ts` | Адаптировать под 5×3 и scatter-count; paylines вторичны |
-| `RewardController` | `slot-game/assets/scripts/controllers/RewardController.ts` | Использовать как основу WIN counter, заменить reward formula на scripted payout |
+| `RewardController` | `slot-game/assets/scripts/controllers/RewardController.ts` | Использовать как основу balance/final value counter, заменить reward formula на scripted payout |
 | `CTAScreen` | `slot-game/assets/scripts/Slot/CTAScreen.ts` | Использовать show/hide skeleton, взять `plbx_html_playable` интеграцию из `other-assets` |
 
 ## 4. Parallel project audit
@@ -85,9 +85,23 @@ Parallel scene:
 | Audio unlock after first tap | `other-assets/scripts/audio/audio-controller.ts` + `Bootstrap.ts` | Безопасный WebAudio unlock; применить позже, если audio входит в scope |
 | `plbx_html_playable` hooks | `other-assets/scripts/plbx_html/plbx_html_playable.ts`, `CTAScreen.ts` | `game_ready`, `game_end`, `download` для CTA/export |
 | Orientation controller | `other-assets/scripts/controllers/OrientationController.ts` | Использовать как reference для portrait/landscape policy, не обязательно в MVP |
-| Reward flights | `DollarRewardFlight.ts`, `ProjectileFlightBase.ts` | Только reference для будущих particles/coin FX; key-flight в MVP не используется |
+| Reward flights | `DollarRewardFlight.ts`, `ProjectileFlightBase.ts` | Reference для money payoff motion; production uses copied money sprites + own prefabs/`.anim`, key-flight в MVP не используется |
 | Enhanced forced handling | `other-assets/scripts/Slot/SlotController.ts`, `ForcedSpawnManager.ts` | Фильтрация random wins не из forced lines |
 | Rich CTA screen | `other-assets/scene.scene` → `CTAScreen` subtree | Взять layering/fade/CTA button structure как пример |
+
+## 4.1. Money sprite transfer
+
+По отдельному решению пользователя из `other-assets` перенесены только отдельные money sprites, не prefabs и не `.meta`:
+
+| Runtime file | Source reference |
+|---|---|
+| `assets/art/fx/money/money-dollar-coin.webp` | `.plbx/reference/other-assets/art/sprites/ui/dollar tilt_.webp` |
+| `assets/art/fx/money/money-gold-coins.png` | `.plbx/reference/other-assets/art/sprites/ui/gold.png` |
+| `assets/art/fx/money/money-gold-bricks.webp` | `.plbx/reference/other-assets/art/sprites/slot/Gold_Bricks_Backings copy 2.webp` |
+| `assets/art/ui/rewards/reward-10m.webp` | `.plbx/reference/other-assets/art/sprites/ui/100,000,000.webp` |
+| `assets/art/ui/rewards/reward-100m.webp` | `.plbx/reference/other-assets/art/sprites/ui/100,000,000 (1).webp` |
+
+Правило `reference-only` сохраняется: дальнейшее копирование из `.plbx/reference/**` требует отдельного решения и обновления `ASSET_SPEC.md`.
 
 ## 5. Migration strategy
 

@@ -2,7 +2,7 @@
 
 ## 1. Назначение
 
-Документ описывает технические контракты реализации playable `Save Toto`: state machine, адаптацию slot template, модули, события, config, view boundaries и правила сцены. Реализация должна соответствовать `.plbx/game-design/GDD.md`, `.plbx/game-design/REFERENCE_AUDIT.md`, `SCENE_SETUP.md` и `AUTO_SCENE_ASSEMBLY_PLAN.md`.
+Документ описывает технические контракты реализации playable `Save Toto`: state machine, адаптацию slot template, модули, события, config, view boundaries и правила сцены. Реализация должна соответствовать `.plbx/game-design/GDD.md`, `.plbx/game-design/REFERENCE_AUDIT.md`, `SCENE_SETUP.md`, `PREFAB_STRATEGY.md`, `ANIMATION_STRATEGY.md` и `AUTO_SCENE_ASSEMBLY_PLAN.md`.
 
 ## 2. Текущий статус проекта
 
@@ -13,7 +13,7 @@
 Целевой workflow:
 
 ```text
-REFERENCE_AUDIT -> ASSET_SPEC -> SCENE_SETUP -> template module import/adaptation -> scene blueprint -> generated scene -> explicit wiring -> SaveToto state machine
+REFERENCE_AUDIT -> ASSET_SPEC -> PREFAB_STRATEGY -> ANIMATION_STRATEGY -> SCENE_SETUP -> template module import/adaptation -> scene blueprint -> generated scene -> explicit wiring -> SaveToto state machine
 ```
 
 Не копировать reference-проекты целиком. Переносить только проверенные модули, переименовывая production-классы под `SaveToto*` для поддержки и навигации.
@@ -250,6 +250,7 @@ sequenceDiagram
 - Input блокируется во время animation lock.
 - Store redirect изолирован в adapter; активна только CTA button, tap-anywhere выключен.
 - Analytics/audio failures не блокируют playable.
+- Visual tween curves live in `.anim` clips/prefabs, not in `SaveTotoStateMachine`.
 
 ## 14. Prefab architecture
 
@@ -269,3 +270,23 @@ Raw asset -> SaveToto prefab -> generated scene instance -> explicit runtime ref
 | `SaveTotoCtaButton.prefab` | CTA button only redirect target | Visual pattern may reference `other-assets`, production asset свой |
 
 Prefab generation может быть автоматизирована через blueprint/editor workflow, но `.meta` не создаются вручную. Scene builder должен инстанцировать prefabs и заполнять serialized references.
+
+## 15. AnimationClip architecture
+
+`.anim` clips are visual assets and must be bound to project prefabs through `Animation` components. Gameplay/state machine calls view methods only:
+
+```ts
+basketView.playSelected(reward);
+lockView.playOpenAndRemove();
+fireView.playLevelTransition(3, 2);
+moneyBurstView.play('goldCoins');
+ctaView.playPulse();
+```
+
+Rules:
+
+- `.anim` assets live under `assets/animations/save-toto/**`.
+- `.anim.meta` is created by Cocos/editor workflow, not manually.
+- Slot reel movement, state transitions, scatter evaluation, balance counting, store redirect and analytics remain code/config-driven.
+- Visual clips can be generated from animation blueprint through Cocos Editor API.
+- Money payoff uses production sprites in `assets/art/fx/money/**`, not `.plbx/reference/**`.

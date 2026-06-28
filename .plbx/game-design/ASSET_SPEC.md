@@ -40,6 +40,16 @@ date: "2026-06-28"
 | `assets/art/ui/balance.png` | `258×91` | Balance panel | Да |
 | `assets/art/ui/win.png` | `554×382` | Win panel | Да |
 | `assets/art/ui/spin.png` | `509×168` | Spin button | Да |
+| `assets/art/fx/money/money-dollar-coin.webp` | `55×59` | Dollar coin money FX | Да |
+| `assets/art/fx/money/money-gold-coins.png` | `281×76` | Gold coin pile money FX | Да |
+| `assets/art/fx/money/money-gold-bricks.webp` | `226×172` | Gold bricks reward FX | Да |
+| `assets/art/fx/money/money-coin-stack-01.png` | `99×59` | Coin stack payoff FX | Да |
+| `assets/art/fx/money/money-coin-stack-02a.png` | `130×69` | Coin stack payoff FX | Да |
+| `assets/art/fx/money/money-coin-stack-02b.png` | `101×63` | Coin stack payoff FX | Да |
+| `assets/art/fx/money/money-coin-stack-03.png` | `160×93` | Large coin stack payoff FX | Да |
+| `assets/art/fx/money/money-dollar-coin-large.png` | `55×59` | Dollar coin payoff FX variant | Да |
+| `assets/art/ui/rewards/reward-10m.webp` | `368×114` | Reward amount fallback/reference label | Да |
+| `assets/art/ui/rewards/reward-100m.webp` | `408×114` | Reward amount fallback/reference label | Да |
 | `assets/fonts/bodegasans/*.ttf` | font | UI font family | Да |
 
 ## 2.1. Reference-only материалы
@@ -55,7 +65,7 @@ date: "2026-06-28"
 ### Reference assets usage
 
 - Из `slot-game` переносить прежде всего scripts/patterns, а не demo art.
-- Из `other-assets` использовать art/prefabs только как visual/VFX reference до отдельного production решения.
+- Из `other-assets` использовать art/prefabs только как visual/VFX reference до отдельного production решения. Исключение: перечисленные money sprites перенесены как production copies без reference `.meta`.
 - Runtime assets Save Toto остаются в `assets/art/**` и `assets/fonts/**`.
 
 ## 3. Текущие runtime-папки Cocos-проекта
@@ -83,6 +93,8 @@ assets/art/slot/symbol-toto.png
 assets/art/ui/balance.png
 assets/art/ui/win.png
 assets/art/ui/spin.png
+assets/art/fx/money/
+assets/art/ui/rewards/
 assets/fonts/bodegasans/
 ```
 
@@ -99,6 +111,19 @@ assets/prefabs/save-toto/fx/
 ```
 
 Подробный contract см. `.plbx/game-design/PREFAB_STRATEGY.md`. Prefabs создаются Cocos/editor workflow; `.meta` вручную не создаются.
+
+## 3.2. Целевые animation-папки
+
+```text
+assets/animations/save-toto/ui/
+assets/animations/save-toto/bonus/
+assets/animations/save-toto/threat/
+assets/animations/save-toto/packshot/
+assets/animations/save-toto/fx/
+```
+
+Подробный contract см. `.plbx/game-design/ANIMATION_STRATEGY.md`. `.anim` создаются Cocos/editor workflow; `.meta` вручную не создаются.
+
 
 
 ## 4. Runtime-использование ассетов
@@ -124,21 +149,39 @@ assets/prefabs/save-toto/fx/
 |---|---|---|
 | `ReelFrame` | `assets/art/slot/reel.png` | Frame for 5×3 grid |
 | `SymbolCell_*` | `assets/art/slot/symbols_bg.png` | Cell background |
-| `SymbolBasket` | `assets/art/slot/symbol-basket.png` | Scatter |
+| `SymbolBasket` | `assets/art/slot/symbol-basket.png` | Basket bonus visual / regular symbol |
 | `SymbolKey` | `assets/art/slot/symbol-key.png` | Key symbol / fallback bonus key |
 | `SymbolDrop` | `assets/art/slot/symbol-drop.png` | Regular symbol |
 | `SymbolOz` | `assets/art/slot/symbol-oz.png` | Regular symbol |
-| `SymbolToto` | `assets/art/slot/symbol-toto.png` | High-pay/Toto symbol |
+| `SymbolToto` | `assets/art/slot/symbol-toto.png` | Toto scatter symbol |
 
 ### 4.3. HUD layer
 
 | Нода | Sprite | Роль |
 |---|---|---|
 | `BalancePanel` | `assets/art/ui/balance.png` | Показ баланса |
-| `WinPanel` | `assets/art/ui/win.png` | Подложка WIN counter |
+| `WinPanel` | `assets/art/ui/win.png` | Fixed WIN visual label/panel |
 | `SpinButton` | `assets/art/ui/spin.png` | Основной input |
 | `InstructionLabel` | Runtime label | Текст подсказок |
 | `CtaButton` | `assets/art/ui/spin.png` fallback | Финальная кнопка до отдельного CTA asset |
+
+
+### 4.4. FX / Money layer
+
+| Нода/Prefab | Sprite | Роль |
+|---|---|---|
+| `MoneyDollarCoin` | `assets/art/fx/money/money-dollar-coin.webp` | Single coin pop/fly |
+| `MoneyGoldCoins` | `assets/art/fx/money/money-gold-coins.png` | Coin pile payoff accent |
+| `MoneyGoldBricks` | `assets/art/fx/money/money-gold-bricks.webp` | Gold bricks reward variant |
+| `MoneyCoinStack01` | `assets/art/fx/money/money-coin-stack-01.png` | Small coin stack variant |
+| `MoneyCoinStack02A` | `assets/art/fx/money/money-coin-stack-02a.png` | Medium coin stack variant |
+| `MoneyCoinStack02B` | `assets/art/fx/money/money-coin-stack-02b.png` | Medium coin stack variant |
+| `MoneyCoinStack03` | `assets/art/fx/money/money-coin-stack-03.png` | Large coin stack variant |
+| `MoneyDollarCoinLarge` | `assets/art/fx/money/money-dollar-coin-large.png` | Dollar coin variant |
+| `Reward10M` | `assets/art/ui/rewards/reward-10m.webp` | Fallback amount sprite/reference label |
+| `Reward100M` | `assets/art/ui/rewards/reward-100m.webp` | Fallback amount sprite/reference label |
+
+Эти файлы перенесены из `.plbx/reference/other-assets/` как production copies без `.meta`; Cocos должен создать новые `.meta` при импорте.
 
 ## 5. Недостающие ассеты и fallback
 
@@ -147,7 +190,7 @@ assets/prefabs/save-toto/fx/
 | Open basket state | Не нужен для MVP | `SaveTotoBasket.prefab` selected animation на текущем basket asset |
 | Standalone key | Не нужен для MVP | Lock-open animation без key flight |
 | Cage door/open layer | Не нужен для MVP | Packshot transition после снятия замков |
-| Coin/bonus particles | Средний | Сгенерировать production particles/prefabs отдельно |
+| Coin/bonus particles | Средний | Money sprites перенесены; particles/prefabs/`.anim` нужно создать production-side |
 | CTA button | Средний | Production `SaveTotoCtaButton.prefab`; reference only for visual pattern |
 | Reward plaques | Средний | Runtime labels with Bodega Sans |
 | Audio SFX | Later | Уникальные звуки будут нарезаны отдельно; reference audio не копировать |
@@ -159,6 +202,7 @@ assets/prefabs/save-toto/fx/
 - Для одинаковых symbol cells использовать prefab/reuse, не дублировать текстуры.
 - Fire level делать через scale/alpha/tint одной текстуры, пока нет отдельных sprites.
 - Для bonus корзин не генерировать 6 разных текстур, если отличие только в reward label. Использовать один `SaveTotoBasket.prefab` и 6 instances.
+- Money sprites использовать через prefabs/`.anim`, не создавать path-зависимости на `.plbx/reference/**`.
 
 ## 7. Проверка ассетов перед scene-фазой
 
@@ -168,3 +212,5 @@ assets/prefabs/save-toto/fx/
 - [x] Файлы разложены по runtime-папкам Cocos-проекта.
 - [x] `.meta` не создавались вручную; текущие `.meta` созданы Cocos Creator после импорта.
 - [x] Fallback для key/open basket принят: key flight и open basket sprite не нужны в MVP.
+
+- [x] Money sprites перенесены в `assets/art/fx/money/` и `assets/art/ui/rewards/`; root money sprites убраны из корня проекта.

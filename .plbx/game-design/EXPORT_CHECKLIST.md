@@ -20,6 +20,8 @@ date: "2026-06-28"
 - [ ] `.plbx/reference/**` исключён из production bundle.
 - [ ] `.plbx/reference/other-assets` audio/VFX assets не скопированы в production без отдельного решения.
 - [ ] Production prefabs находятся в `assets/prefabs/save-toto/**`.
+- [ ] `.anim` clips находятся в `assets/animations/save-toto/**` и не зависят от `.plbx/reference/**`.
+- [ ] Money sprites из `assets/art/fx/money/**` и `assets/art/ui/rewards/**` включены осознанно и оптимизированы.
 - [ ] Нет ручных `.meta`.
 - [ ] Нет временных debug overlays.
 - [ ] Нет production `console.log`.

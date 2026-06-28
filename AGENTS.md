@@ -18,6 +18,7 @@
 .plbx/game-design/AUTO_SCENE_ASSEMBLY_PLAN.md
 .plbx/game-design/ASSET_SPEC.md
 .plbx/game-design/PREFAB_STRATEGY.md
+.plbx/game-design/ANIMATION_STRATEGY.md
 ```
 
 Если задача связана с кодом slot/template migration, дополнительно изучить:
@@ -31,6 +32,7 @@
 .plbx/reference/other-assets/scripts/controllers/SpinButtonController.ts
 .plbx/reference/other-assets/scripts/Slot/managers/ForcedSpawnManager.ts
 .plbx/game-design/PREFAB_STRATEGY.md
+.plbx/game-design/ANIMATION_STRATEGY.md
 ```
 
 Если задача связана с QA/export, дополнительно прочитать:
@@ -98,6 +100,7 @@ copy reference project wholesale -> manual scene fixes -> runtime find by name -
 - `WinChecker` должен быть адаптирован: scatter-count запускает bonus; line wins не являются главным flow gate. Scatter symbol = Toto.
 - Все перенесённые классы переименовываются/namespace-ятся под `SaveToto*` для поддержки и навигации.
 - Prefabs создаются в `assets/prefabs/save-toto/**`; `.meta` создаёт Cocos, не агент вручную.
+- `.anim` clips создаются/генерируются через Cocos/editor workflow в `assets/animations/save-toto/**`; gameplay не хардкодит visual tween curves.
 
 ## 7. Definition of done для любой реализации
 

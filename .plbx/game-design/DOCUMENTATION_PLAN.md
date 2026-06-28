@@ -26,13 +26,14 @@ source_reference: "Tripledot B1-C2 documentation set"
 | 4 | `.plbx/game-design/REFERENCE_AUDIT.md` | Роли `slot-game` template и `other-assets` reference |
 | 5 | `.plbx/game-design/ASSET_SPEC.md` | Инвентаризация ассетов, роли, недостающие элементы |
 | 6 | `.plbx/game-design/PREFAB_STRATEGY.md` | Правила prefab-слоя и автоматизации reusable объектов |
-| 7 | `.plbx/game-design/SCENE_SETUP.md` | Целевая иерархия сцены, layout и wiring |
-| 8 | `.plbx/game-design/AUTO_SCENE_ASSEMBLY_PLAN.md` | План автоматической сборки сцены и оценка подхода scene-first |
-| 9 | `ARCHITECTURE.md` | Технические контракты систем, state machine, события, конфиги |
-| 10 | `.plbx/game-design/IMPLEMENTATION_PHASES.md` | Пошаговая последовательность реализации |
-| 11 | `.plbx/game-design/QA_CHECKLIST.md` | Функциональные, визуальные и регрессионные проверки |
-| 12 | `.plbx/game-design/EXPORT_CHECKLIST.md` | Проверки playable-сборок и рекламных сетей |
-| 13 | `AGENTS.md` | Правила работы агентов и ограничения |
+| 7 | `.plbx/game-design/ANIMATION_STRATEGY.md` | Правила `.anim` clips, binding к prefabs и animation automation |
+| 8 | `.plbx/game-design/SCENE_SETUP.md` | Целевая иерархия сцены, layout и wiring |
+| 9 | `.plbx/game-design/AUTO_SCENE_ASSEMBLY_PLAN.md` | План автоматической сборки сцены и оценка подхода scene-first |
+| 10 | `ARCHITECTURE.md` | Технические контракты систем, state machine, события, конфиги |
+| 11 | `.plbx/game-design/IMPLEMENTATION_PHASES.md` | Пошаговая последовательность реализации |
+| 12 | `.plbx/game-design/QA_CHECKLIST.md` | Функциональные, визуальные и регрессионные проверки |
+| 13 | `.plbx/game-design/EXPORT_CHECKLIST.md` | Проверки playable-сборок и рекламных сетей |
+| 14 | `AGENTS.md` | Правила работы агентов и ограничения |
 
 Если документы конфликтуют, приоритет выше у документа с меньшим номером.
 
@@ -45,6 +46,7 @@ source_reference: "Tripledot B1-C2 documentation set"
 | `.plbx/game-design/REFERENCE_AUDIT.md` | Создан | Зафиксированы роли `slot-game` как logic base и `other-assets` как parallel reference |
 | `.plbx/game-design/ASSET_SPEC.md` | Создан | Зафиксированы найденные PNG, размеры и роли |
 | `.plbx/game-design/PREFAB_STRATEGY.md` | Создан | Зафиксирован prefab-слой, список target prefabs и automation rules |
+| `.plbx/game-design/ANIMATION_STRATEGY.md` | Создан | Зафиксированы `.anim` clips, generator rules и money sprites for payoff animations |
 | `.plbx/game-design/SCENE_SETUP.md` | Создан | Описана целевая структура Canvas `1080×1920` |
 | `.plbx/game-design/AUTO_SCENE_ASSEMBLY_PLAN.md` | Обновлён | Scene-first совмещён с template-compatible hierarchy |
 | `ARCHITECTURE.md` | Обновлён | Описаны template-derived slot core, state machine, config и adapters |
@@ -72,6 +74,7 @@ source_reference: "Tripledot B1-C2 documentation set"
 - `.plbx/game-design/REFERENCE_AUDIT.md`
 - `.plbx/game-design/ASSET_SPEC.md`
 - `.plbx/game-design/PREFAB_STRATEGY.md`
+- `.plbx/game-design/ANIMATION_STRATEGY.md`
 - `.plbx/game-design/SCENE_SETUP.md`
 
 Цель: подготовить runtime-ассеты, отделить reference-only материалы и понять, какие решения можно переносить из template/parallel reference.
@@ -110,8 +113,9 @@ source_reference: "Tripledot B1-C2 documentation set"
 1. Если меняется сценарий, сначала обновить `.plbx/game-design/GDD.md`, затем `OPEN_ISSUES.md`.
 2. Если меняется состав ассетов, сначала обновить `ASSET_SPEC.md`, затем `SCENE_SETUP.md`.
 3. Если меняется prefab-слой, сначала обновить `PREFAB_STRATEGY.md`, затем `SCENE_SETUP.md` и генератор/сцену.
-4. Если меняются события или состояния, синхронизировать `ARCHITECTURE.md` и `QA_CHECKLIST.md`.
-5. Перед реализацией нерешённые вопросы из `OPEN_ISSUES.md` должны быть либо закрыты, либо явно приняты как допущения.
+4. Если меняются `.anim` clips или visual animation rules, сначала обновить `ANIMATION_STRATEGY.md`, затем prefabs/scene blueprint.
+5. Если меняются события или состояния, синхронизировать `ARCHITECTURE.md` и `QA_CHECKLIST.md`.
+6. Перед реализацией нерешённые вопросы из `OPEN_ISSUES.md` должны быть либо закрыты, либо явно приняты как допущения.
 
 ## 6. Reference policy
 
@@ -124,6 +128,7 @@ source_reference: "Tripledot B1-C2 documentation set"
 - Полный GDD описывает все стадии от intro до CTA.
 - Все найденные ассеты имеют роль или пометку `reference_only`.
 - Prefab strategy описывает raw asset → prefab → scene pipeline.
+- Animation strategy описывает raw asset → `.anim` clip → prefab Animation component pipeline.
 - Все критические неизвестные вынесены в `OPEN_ISSUES.md`.
 - Template-first + scene-first подход описан как pipeline, а не как ручная сборка статичного мокапа.
 - Реализационные фазы позволяют начать со сцены без хардкода runtime-логики.

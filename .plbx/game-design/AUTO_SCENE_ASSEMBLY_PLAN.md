@@ -29,20 +29,21 @@ date: "2026-06-28"
 
 1. Создание верхнеуровневых слоёв: `BackgroundLayer`, `ThreatLayer`, `SlotLayer`, `HudLayer`, `FxLayer`, `EndCardLayer`.
 2. Создание template-compatible slot hierarchy: `Slot`, `Columns`, 5 column nodes, `System/ElementConfiguration`, `System/ForcedSpawnManager`.
-3. Создание/инстанцирование prefabs из `PREFAB_STRATEGY.md`: slot symbols, baskets, locks, CTA.
-4. Размещение ассетов/prefabs по layout из `SCENE_SETUP.md`.
-5. Создание пустых anchor-нод для будущих анимаций:
+3. Создание/инстанцирование prefabs из `PREFAB_STRATEGY.md`: slot symbols, baskets, locks, CTA, money burst.
+4. Генерация/подключение `.anim` clips из `ANIMATION_STRATEGY.md` для prefabs.
+5. Размещение ассетов/prefabs по layout из `SCENE_SETUP.md`.
+6. Создание пустых anchor-нод для будущих анимаций:
    - `FloatingRewardRoot`
    - `CoinFxRoot`
    - `OpenLockFxRoot`
    - `PackshotRoot`
    - `EndTotoRoot`
-6. Создание интерактивных targets:
+7. Создание интерактивных targets:
    - `SpinButton`
    - `Basket_01..Basket_06`
    - `PlayNowButton`
-7. Генерация data-файла со ссылками/именами для wiring.
-8. Создание placeholder labels для `WIN`, balance, instruction и CTA.
+8. Генерация data-файла со ссылками/именами для wiring.
+9. Создание placeholder labels для `WIN`, balance, instruction и CTA.
 
 ## 4. Что не автоматизировать на первой итерации
 
@@ -62,6 +63,7 @@ flowchart TD
   A[ASSET_SPEC.md] --> B
   C[SCENE_SETUP.md] --> B
   P[PREFAB_STRATEGY.md] --> B
+  AN[ANIMATION_STRATEGY.md] --> B
   B --> D[Auto scene builder]
   D --> E[Generated scene hierarchy]
   E --> F[Scene graph inspection]
@@ -88,7 +90,8 @@ flowchart TD
     }
   ],
   "interactive": ["SpinButton", "Basket_01", "Basket_02", "Basket_03", "Basket_04", "Basket_05", "Basket_06", "PlayNowButton"],
-  "prefabs": ["SaveTotoBasket", "SaveTotoLock", "SaveTotoSlotSymbol", "SaveTotoCtaButton"],
+  "prefabs": ["SaveTotoBasket", "SaveTotoLock", "SaveTotoSlotSymbol", "SaveTotoCtaButton", "SaveTotoMoneyBurst"],
+  "animations": ["basket_selected", "lock_open_remove", "fire_level_transition", "money_pop", "cta_pulse"],
   "animationAnchors": ["LocksRoot", "FireRoot", "CoinFxRoot", "PackshotRoot"]
 }
 ```
@@ -126,7 +129,7 @@ flowchart TD
 Scene-first подход рекомендуется, но в форме:
 
 ```text
-reference template + assets + prefabs + documented scene contract + auto blueprint + explicit wiring -> SaveToto logic
+reference template + assets + prefabs + .anim clips + documented scene contract + auto blueprint + explicit wiring -> SaveToto logic
 ```
 
 Не рекомендуется форма:

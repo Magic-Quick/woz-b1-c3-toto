@@ -15,7 +15,7 @@ date: "2026-06-28"
 
 Задачи:
 
-1. Прочитать `GDD.md`, `.plbx/game-design/GDD.md`, `OPEN_ISSUES.md`, `REFERENCE_AUDIT.md`, `ASSET_SPEC.md`, `SCENE_SETUP.md`, `ARCHITECTURE.md`, `AGENTS.md`.
+1. Прочитать `GDD.md`, `.plbx/game-design/GDD.md`, `OPEN_ISSUES.md`, `REFERENCE_AUDIT.md`, `ASSET_SPEC.md`, `PREFAB_STRATEGY.md`, `ANIMATION_STRATEGY.md`, `SCENE_SETUP.md`, `ARCHITECTURE.md`, `AGENTS.md`.
 2. Проверить `.plbx/reference/slot-game/assets/scene.scene` через scene graph.
 3. Проверить `.plbx/reference/other-assets/scene.scene` через scene graph.
 4. Использовать принятые решения из `OPEN_ISSUES.md`: existing symbols, стартовые prizes, store stub, no auto-flow MVP, Toto scatter.
@@ -88,6 +88,20 @@ date: "2026-06-28"
 
 Готово, когда scene blueprint может инстанцировать basket/lock/symbol/CTA prefabs.
 
+## Фаза 3.6. AnimationClip contracts и generated `.anim`
+
+Цель: вынести visual tween curves из gameplay-кода в reusable `.anim` clips.
+
+Задачи:
+
+1. Прочитать `.plbx/game-design/ANIMATION_STRATEGY.md`.
+2. Создать animation blueprint для UI, basket, lock, fire, packshot и money FX clips.
+3. Сгенерировать/создать `.anim` clips через Cocos/editor workflow в `assets/animations/save-toto/**`.
+4. Подключить clips к `Animation` components на prefabs.
+5. Не создавать `.meta` вручную.
+
+Готово, когда view methods могут запускать clips без hardcoded tween curves в state machine.
+
 ## Фаза 4. Scene blueprint под template-compatible hierarchy
 
 Цель: создать data-driven blueprint, совместимый с template core.
@@ -96,7 +110,8 @@ date: "2026-06-28"
 
 1. Перенести layout из `SCENE_SETUP.md` в `scene-blueprint.json` или эквивалент.
 2. Включить prefab instances из `PREFAB_STRATEGY.md`.
-3. Включить template-compatible nodes:
+3. Включить `.anim` clip slots/bindings из `ANIMATION_STRATEGY.md`.
+4. Включить template-compatible nodes:
    - `Slot`;
    - `Columns`;
    - `Colimn_1..Colimn_5` или финальные `Column_1..5` с documented mapping;
@@ -104,13 +119,13 @@ date: "2026-06-28"
    - `RewardController`;
    - `System/ElementConfiguration`;
    - `System/ForcedSpawnManager`.
-4. Включить Save Toto nodes:
+5. Включить Save Toto nodes:
    - `ThreatLayer`;
    - `BonusRoot`;
    - `OpenLockFxRoot`;
    - `PackshotRoot`;
    - `EndCardLayer`.
-5. Проверить, что blueprint не содержит gameplay logic.
+6. Проверить, что blueprint не содержит gameplay logic или hardcoded visual curves.
 
 Готово, когда blueprint может повторно собрать сцену без ручного поиска нод.
 
@@ -120,7 +135,7 @@ date: "2026-06-28"
 
 Задачи:
 
-1. Создать Canvas, layers, template slot nodes, Save Toto threat nodes и prefab instances.
+1. Создать Canvas, layers, template slot nodes, Save Toto threat nodes, prefab instances и Animation clip slots.
 2. Разместить background, logo, cage, Toto, locks, fire, reel, HUD.
 3. Создать 5 reel columns и подключить `SlotColumn`.
 4. Создать `BonusRoot` с 6 instances `SaveTotoBasket.prefab`.
@@ -138,8 +153,9 @@ date: "2026-06-28"
 1. Заполнить explicit property references.
 2. Настроить `ElementConfiguration` с Save Toto prefabs/symbols.
 3. Настроить `ForcedSpawnManager` на scripted spin.
-4. Проверить, что `SPIN` запускает движение 5 колонок.
-5. Проверить, что `spin-complete` приходит один раз.
+4. Проверить, что `Animation` clips на prefabs запускаются через view methods.
+5. Проверить, что `SPIN` запускает движение 5 колонок.
+6. Проверить, что `spin-complete` приходит один раз.
 
 Готово, когда template spin работает без bonus/threat progression.
 
@@ -195,7 +211,7 @@ date: "2026-06-28"
 Задачи:
 
 1. Добавить SPIN pulse/tutorial fade.
-2. Добавить glow/coin particles; key flights не входят в MVP.
+2. Добавить glow/coin/money particles и `.anim` clips; key flights не входят в MVP.
 3. Настроить fire transitions.
 4. Не подключать reference audio assets; audio hooks оставить на будущие уникальные звуки.
 5. Landscape/adaptive вынести после MVP.

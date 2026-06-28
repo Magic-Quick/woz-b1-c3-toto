@@ -130,9 +130,9 @@ stateDiagram-v2
 |---|---|---|
 | Intro | `0/4` активных действий | Понять угрозу и увидеть SPIN |
 | Spin | `1/4` | Получить 3 scatter |
-| Pick 1 | `2/4` | Первый ключ, первый замок |
-| Pick 2 | `3/4` | Второй ключ, второй замок |
-| Pick 3 | `4/4` | Третий ключ, освобождение |
+| Pick 1 | `2/4` | Первый reward, левый замок |
+| Pick 2 | `3/4` | Второй reward, центральный замок |
+| Pick 3 | `4/4` | Третий reward, правый замок и packshot |
 | End-card | Финал | CTA переход |
 
 ## 8. Персонажи и объекты
@@ -168,10 +168,9 @@ stateDiagram-v2
 | Reel stop | Per-reel stop ticks |
 | Scatter hit | Sparkle/chime, bonus stinger |
 | Basket open | Basket pop/open |
-| Key fly | Whoosh |
-| Lock unlock | Key turn + padlock snap |
+| Lock unlock | Padlock snap/open |
 | Fire reduce | Fire fade |
-| Cage open | Metal swing/rattle |
+| Packshot transition | Positive transition whoosh/riser |
 | Toto freed | Happy bark |
 | Big win | Coin shower + win stinger |
 | CTA | Short positive jingle |
@@ -183,8 +182,8 @@ stateDiagram-v2
 | Экран/слой | Элемент | Видимость | Поведение |
 |---|---|---|---|
 | Gameplay | `LOGO` | Intro–Payout | В safe area, не перекрывает клетку |
-| Gameplay | `BalancePanel` | Intro–Payout | Статичный баланс или лёгкий idle bump |
-| Gameplay | `WinPanel` | Intro–Payout | До payout показывает стартовое/скриптовое значение, на payout докручивается |
+| Gameplay | `BalancePanel` | Intro–Payout | Balance увеличивается/докручивается на payout |
+| Gameplay | `WinPanel` | Intro–Payout | Фиксированный visual label/panel; не главный counter |
 | Gameplay | `SpinButton` | `SpinReady` | Пульсирует, принимает один tap |
 | Reel | `ReelGrid` | Intro–SpinResult | 5×3 символов, scatter видны на result |
 | Bonus | `BasketGrid` | BonusIntro–BonusPick | 6 корзин, 3 выбираются |
@@ -208,8 +207,8 @@ stateDiagram-v2
 | `introDuration` | `1.2` | sec | Авто-показ угрозы |
 | `spinDuration` | `2.6` | sec | Общая длительность spin |
 | `bonusIntroDuration` | `0.8` | sec | Появление корзин |
-| `unlockSequenceDuration` | `1.0` | sec | Один ключ → замок |
-| `payoutDuration` | `2.4` | sec | Win counter + освобождение |
+| `unlockSequenceDuration` | `1.0` | sec | Один pick → lock-open/remove animation |
+| `payoutDuration` | `2.4` | sec | Balance counter + packshot payoff |
 | `idleSpinDelay` | `0` | sec | Auto-spin выключен в MVP |
 | `idlePickDelay` | `0` | sec | Auto-pick выключен в MVP |
 | `finalWinValue` | `10000000` | credits | Рабочее значение из `.plbx/reference/scene.png` |
@@ -242,6 +241,16 @@ stateDiagram-v2
 | `win_panel` | image | `assets/art/ui/win.png` | WIN panel |
 | `spin_button` | image | `assets/art/ui/spin.png` | SPIN button |
 | `light_fx` | image | `assets/art/scene/light.png` | Световой payoff FX |
+| `money_dollar_coin` | image | `assets/art/fx/money/money-dollar-coin.webp` | Dollar coin payoff/money FX |
+| `money_gold_coins` | image | `assets/art/fx/money/money-gold-coins.png` | Gold coin pile payoff/money FX |
+| `money_gold_bricks` | image | `assets/art/fx/money/money-gold-bricks.webp` | Gold bricks reward/payoff variant |
+| `money_coin_stack_01` | image | `assets/art/fx/money/money-coin-stack-01.png` | Coin stack payoff FX |
+| `money_coin_stack_02a` | image | `assets/art/fx/money/money-coin-stack-02a.png` | Coin stack payoff FX |
+| `money_coin_stack_02b` | image | `assets/art/fx/money/money-coin-stack-02b.png` | Coin stack payoff FX |
+| `money_coin_stack_03` | image | `assets/art/fx/money/money-coin-stack-03.png` | Large coin stack payoff FX |
+| `money_dollar_coin_large` | image | `assets/art/fx/money/money-dollar-coin-large.png` | Dollar coin payoff FX variant |
+| `reward_10m` | image | `assets/art/ui/rewards/reward-10m.webp` | Amount label fallback/reference sprite |
+| `reward_100m` | image | `assets/art/ui/rewards/reward-100m.webp` | Amount label fallback/reference sprite |
 | `font_bodega_black` | font | `assets/fonts/bodegasans/Bodega Sans Black.ttf` | UI-текст |
 | `font_bodega_light` | font | `assets/fonts/bodegasans/Bodega Sans Light.ttf` | Вторичный UI-текст |
 
@@ -270,9 +279,9 @@ stateDiagram-v2
 | `basket_pick` | Игрок выбрал корзину | `{ pickIndex, basketIndex, rewardId }` |
 | `lock_removed` | Замок снят | `{ lockIndex, locksRemaining }` |
 | `fire_level_changed` | Огонь снижен | `{ fireLevel }` |
-| `toto_freed` | Клетка открылась | `{ picks: 3 }` |
-| `win_count_start` | Старт счётчика | `{ targetWin }` |
-| `win_count_complete` | Счётчик завершён | `{ finalWin }` |
+| `toto_freed` | Packshot transition показывает свободного Тото | `{ picks: 3 }` |
+| `balance_count_start` | Старт balance/final value counter | `{ targetValue }` |
+| `balance_count_complete` | Balance/final value counter завершён | `{ finalValue }` |
 | `cta_shown` | End-card показан | `{ finalWin }` |
 | `cta_click` | CTA button tap | `{ network, platform }` |
 | `store_redirect` | Redirect вызван | `{ urlType }` |
@@ -312,16 +321,19 @@ stateDiagram-v2
 4. `.plbx/game-design/SCENE_SETUP.md`
 5. `.plbx/game-design/AUTO_SCENE_ASSEMBLY_PLAN.md`
 6. `.plbx/game-design/REFERENCE_AUDIT.md`
-7. `ARCHITECTURE.md`
-8. `AGENTS.md`
+7. `.plbx/game-design/PREFAB_STRATEGY.md`
+8. `.plbx/game-design/ANIMATION_STRATEGY.md`
+9. `ARCHITECTURE.md`
+10. `AGENTS.md`
 
 Acceptance criteria первой реализации:
 
-- Сцена собирается из предоставленных ассетов, project-specific prefabs и template-compatible `Slot/Columns` contract.
+- Сцена собирается из предоставленных ассетов, project-specific prefabs, `.anim` clips и template-compatible `Slot/Columns` contract.
 - `SPIN` запускает template-derived scripted 5×3 spin с 3 scatter-символами Тото.
 - Bonus показывает 6 корзин и принимает 3 выбора.
 - Каждый выбор снимает один замок слева направо и снижает огонь.
 - После третьего выбора запускается packshot/payoff, balance докручивается, `WIN` остаётся фиксированным visual label.
 - End-card показывает CTA; tap вызывает store redirect stub/adapter.
 - Нет runtime-поиска критичных нод по имени; ссылки передаются явно.
+- Visual animations are triggered through prefab/view `.anim` clips, not hardcoded in state machine.
 - `.plbx/reference/slot-game/` используется как база логики, `.plbx/reference/other-assets/` — только как reference решений.

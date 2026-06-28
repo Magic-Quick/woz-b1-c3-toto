@@ -1,0 +1,272 @@
+{
+  "$schema": "save-toto-scene-blueprint-v1",
+  "projectId": "WOZ_B1_C3_SaveToto",
+  "source": ".plbx/game-design/SCENE_SETUP.md",
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "orientation": "portrait_9_16"
+  },
+  "safeMargins": {
+    "horizontalPx": 80,
+    "bottomCtaPx": 100
+  },
+  "layers": [
+    { "name": "BackgroundLayer", "zOrder": 0, "parent": "Canvas" },
+    { "name": "ThreatLayer", "zOrder": 10, "parent": "Canvas" },
+    { "name": "SlotLayer", "zOrder": 20, "parent": "Canvas" },
+    { "name": "HudLayer", "zOrder": 30, "parent": "Canvas" },
+    { "name": "FxLayer", "zOrder": 40, "parent": "Canvas" },
+    { "name": "EndCardLayer", "zOrder": 50, "parent": "Canvas" },
+    { "name": "System", "zOrder": -1, "parent": "scene", "note": "Логические контроллеры, вне Canvas" }
+  ],
+  "prefabs": [
+    { "name": "SaveTotoSlotSymbol", "path": "assets/prefabs/save-toto/slot/SaveTotoSlotSymbol.prefab", "script": "SaveTotoSlotElement", "sprite": "assets/art/slot/symbols_bg.png" },
+    { "name": "SaveTotoSymbolTotoScatter", "path": "assets/prefabs/save-toto/slot/SaveTotoSymbolTotoScatter.prefab", "script": "SaveTotoSlotElement", "sprite": "assets/art/slot/symbol-toto.png" },
+    { "name": "SaveTotoSymbolBasket", "path": "assets/prefabs/save-toto/slot/SaveTotoSymbolBasket.prefab", "script": "SaveTotoSlotElement", "sprite": "assets/art/slot/symbol-basket.png" },
+    { "name": "SaveTotoSymbolKey", "path": "assets/prefabs/save-toto/slot/SaveTotoSymbolKey.prefab", "script": "SaveTotoSlotElement", "sprite": "assets/art/slot/symbol-key.png" },
+    { "name": "SaveTotoSymbolDrop", "path": "assets/prefabs/save-toto/slot/SaveTotoSymbolDrop.prefab", "script": "SaveTotoSlotElement", "sprite": "assets/art/slot/symbol-drop.png" },
+    { "name": "SaveTotoSymbolOz", "path": "assets/prefabs/save-toto/slot/SaveTotoSymbolOz.prefab", "script": "SaveTotoSlotElement", "sprite": "assets/art/slot/symbol-oz.png" },
+    { "name": "SaveTotoBasket", "path": "assets/prefabs/save-toto/bonus/SaveTotoBasket.prefab", "script": "SaveTotoBasketView", "sprite": "assets/art/slot/symbol-basket.png" },
+    { "name": "SaveTotoLock", "path": "assets/prefabs/save-toto/threat/SaveTotoLock.prefab", "script": "SaveTotoLockView" },
+    { "name": "SaveTotoCtaButton", "path": "assets/prefabs/save-toto/ui/SaveTotoCtaButton.prefab", "script": "SaveTotoEndCardView" },
+    { "name": "SaveTotoMoneyBurst", "path": "assets/prefabs/save-toto/fx/SaveTotoMoneyBurst.prefab", "script": "SaveTotoVFXSpawner" }
+  ],
+  "animations": [
+    { "name": "spin_pulse", "path": "assets/animations/save-toto/ui/spin_pulse.anim", "bind": "HudLayer/SpinButton" },
+    { "name": "basket_idle_pulse", "path": "assets/animations/save-toto/bonus/basket_idle_pulse.anim", "bind": "SaveTotoBasket.prefab" },
+    { "name": "basket_selected", "path": "assets/animations/save-toto/bonus/basket_selected.anim", "bind": "SaveTotoBasket.prefab" },
+    { "name": "lock_open_remove_left", "path": "assets/animations/save-toto/threat/lock_open_remove_left.anim", "bind": "LockLeft" },
+    { "name": "lock_open_remove_center", "path": "assets/animations/save-toto/threat/lock_open_remove_center.anim", "bind": "LockCenter" },
+    { "name": "lock_open_remove_right", "path": "assets/animations/save-toto/threat/lock_open_remove_right.anim", "bind": "LockRight" },
+    { "name": "fire_level_3_to_2", "path": "assets/animations/save-toto/threat/fire_level_3_to_2.anim", "bind": "FireRoot" },
+    { "name": "fire_level_2_to_1", "path": "assets/animations/save-toto/threat/fire_level_2_to_1.anim", "bind": "FireRoot" },
+    { "name": "fire_level_1_to_0", "path": "assets/animations/save-toto/threat/fire_level_1_to_0.anim", "bind": "FireRoot" },
+    { "name": "packshot_intro", "path": "assets/animations/save-toto/packshot/packshot_intro.anim", "bind": "ThreatLayer" },
+    { "name": "cta_pulse", "path": "assets/animations/save-toto/ui/cta_pulse.anim", "bind": "HudLayer/CtaButton" },
+    { "name": "money_dollar_pop", "path": "assets/animations/save-toto/fx/money_dollar_pop.anim", "bind": "SaveTotoMoneyBurst.prefab" }
+  ],
+  "animationAnchors": ["LocksRoot", "FireRoot", "CoinFxRoot", "PackshotRoot", "OpenLockFxRoot", "EndTotoRoot"],
+  "nodes": [
+    {
+      "name": "BackgroundLayer", "parent": "Canvas", "children": [
+        { "name": "BackgroundImage", "position": { "x": 0, "y": 0 }, "sprite": "assets/art/backgrounds/background.png", "SizeMode": "cover" }
+      ]
+    },
+    {
+      "name": "ThreatLayer", "parent": "Canvas", "children": [
+        { "name": "Logo", "position": { "x": -360, "y": 720 }, "sprite": "assets/art/logos/logo_woz_slots.png", "size": { "width": 300 } },
+        { "name": "CageRoot", "position": { "x": 60, "y": 470 }, "size": { "width": 620, "height": 880 }, "children": [
+          { "name": "CageSwingRoot", "children": [
+            { "name": "CageBase", "sprite": "assets/art/scene/cage.png" },
+            { "name": "TotoRoot", "position": { "x": 70, "y": -40 }, "children": [
+              { "name": "TotoBody", "sprite": "assets/art/characters/toto-body.png" },
+              { "name": "TotoHead", "sprite": "assets/art/characters/toto-head.png", "children": [
+                { "name": "TotoTongue", "sprite": "assets/art/characters/toto-tongue.png" }
+              ] }
+            ] },
+            { "name": "LocksRoot", "position": { "x": -60, "y": -320 }, "size": { "width": 620, "height": 210 }, "children": [
+              { "name": "LockLeft", "prefab": "SaveTotoLock", "scriptProps": { "lockId": "left" }, "sprite": "assets/art/scene/locks/lock-left.png", "position": { "x": -180, "y": 0 } },
+              { "name": "LockCenter", "prefab": "SaveTotoLock", "scriptProps": { "lockId": "center" }, "sprite": "assets/art/scene/locks/lock-center.png", "position": { "x": 0, "y": 0 } },
+              { "name": "LockRight", "prefab": "SaveTotoLock", "scriptProps": { "lockId": "right" }, "sprite": "assets/art/scene/locks/lock-right.png", "position": { "x": 180, "y": 0 } }
+            ] },
+            { "name": "OpenLockFxRoot", "active": false, "sprite": "assets/art/scene/locks/open-lock.png" }
+          ] }
+        ] },
+        { "name": "FireRoot", "position": { "x": 0, "y": 170 }, "size": { "width": 900, "height": 360 }, "children": [
+          { "name": "FireSprite", "sprite": "assets/art/scene/fire.png" },
+          { "name": "LightFx", "active": false, "sprite": "assets/art/scene/light.png" }
+        ] }
+      ]
+    },
+    {
+      "name": "SlotLayer", "parent": "Canvas", "children": [
+        { "name": "WinBalanceRoot", "position": { "x": 0, "y": 95 }, "size": { "width": 960, "height": 190 }, "children": [
+          { "name": "BalancePanel", "sprite": "assets/art/ui/balance.png", "children": [
+            { "name": "BalanceLabel", "component": "Label", "font": "assets/fonts/bodegasans/Bodega Sans Black.ttf", "initialValue": "555000" }
+          ] },
+          { "name": "WinPanel", "sprite": "assets/art/ui/win.png", "children": [
+            { "name": "WinTitleLabel", "component": "Label", "text": "WIN" },
+            { "name": "WinValueLabel", "component": "Label", "text": "10,000,000", "note": "Fixed visual label (OI-204)" }
+          ] }
+        ] },
+        { "name": "Slot", "script": "SaveTotoSlotController", "position": { "x": 0, "y": -430 }, "children": [
+          { "name": "ReelRoot", "size": { "width": 960, "height": 490 }, "children": [
+            { "name": "ReelFrame", "sprite": "assets/art/slot/reel.png" },
+            { "name": "Columns", "children": [
+              { "name": "Column_1", "script": "SaveTotoSlotColumn" },
+              { "name": "Column_2", "script": "SaveTotoSlotColumn" },
+              { "name": "Column_3", "script": "SaveTotoSlotColumn" },
+              { "name": "Column_4", "script": "SaveTotoSlotColumn" },
+              { "name": "Column_5", "script": "SaveTotoSlotColumn" }
+            ] }
+          ] },
+          { "name": "BonusRoot", "position": { "x": 0, "y": 50 }, "active": false, "script": "SaveTotoBonusView", "children": [
+            { "name": "BonusDimmer" },
+            { "name": "InstructionLabel", "component": "Label", "text": "Pick a basket to free Toto" },
+            { "name": "BasketGrid", "children": [
+              { "name": "Basket_01", "prefab": "SaveTotoBasket", "scriptProps": { "basketIndex": 0 } },
+              { "name": "Basket_02", "prefab": "SaveTotoBasket", "scriptProps": { "basketIndex": 1 } },
+              { "name": "Basket_03", "prefab": "SaveTotoBasket", "scriptProps": { "basketIndex": 2 } },
+              { "name": "Basket_04", "prefab": "SaveTotoBasket", "scriptProps": { "basketIndex": 3 } },
+              { "name": "Basket_05", "prefab": "SaveTotoBasket", "scriptProps": { "basketIndex": 4 } },
+              { "name": "Basket_06", "prefab": "SaveTotoBasket", "scriptProps": { "basketIndex": 5 } }
+            ] }
+          ] }
+        ] }
+      ]
+    },
+    {
+      "name": "HudLayer", "parent": "Canvas", "children": [
+        { "name": "SpinButton", "position": { "x": 0, "y": -815 }, "sprite": "assets/art/ui/spin.png", "script": "SaveTotoSpinButtonController", "children": [
+          { "name": "SpinLabel", "component": "Label", "text": "SPIN" }
+        ] },
+        { "name": "CtaButton", "active": false, "sprite": "assets/art/ui/spin.png", "note": "CTA production asset; fallback spin.png", "children": [
+          { "name": "CtaLabel", "component": "Label", "text": "PLAY NOW" }
+        ] }
+      ]
+    },
+    {
+      "name": "FxLayer", "parent": "Canvas", "children": [
+        { "name": "LockFxRoot", "active": false },
+        { "name": "CoinFxRoot", "active": false },
+        { "name": "FloatingRewardRoot", "active": false }
+      ]
+    },
+    {
+      "name": "EndCardLayer", "parent": "Canvas", "active": false, "size": { "width": 1080, "height": 1920 }, "script": "SaveTotoEndCardView", "children": [
+        { "name": "EndOverlay" },
+        { "name": "EndLogo", "sprite": "assets/art/logos/logo_woz_slots.png" },
+        { "name": "EndTotoRoot", "sprite": "assets/art/characters/toto-body.png" },
+        { "name": "EndWinLabel", "component": "Label", "text": "10,000,000" },
+        { "name": "PlayNowButton", "prefab": "SaveTotoCtaButton", "component": "Button" }
+      ]
+    },
+    {
+      "name": "System", "parent": "scene", "children": [
+        { "name": "SaveTotoBootstrap", "script": "SaveTotoBootstrap" },
+        { "name": "GameConfig", "script": "SaveTotoGameConfig" },
+        { "name": "StateMachine", "script": "SaveTotoStateMachine" },
+        { "name": "ElementConfiguration", "script": "SaveTotoElementConfiguration" },
+        { "name": "ForcedSpawnManager", "script": "SaveTotoForcedSpawnManager" },
+        { "name": "SpinsController", "script": "SaveTotoSpinsController" },
+        { "name": "RewardController", "script": "SaveTotoRewardController" },
+        { "name": "CTAScreen", "script": "SaveTotoCTAScreen" },
+        { "name": "SlotView", "script": "SaveTotoSlotView" },
+        { "name": "ThreatView", "script": "SaveTotoThreatView" },
+        { "name": "HudView", "script": "SaveTotoHudView" },
+        { "name": "WinAnimationConfiguration", "script": "SaveTotoWinAnimationConfiguration" }
+      ]
+    }
+  ],
+  "symbolGrid": {
+    "columns": 5,
+    "rows": 3,
+    "cellWidth": 176,
+    "cellHeight": 142,
+    "gridWidth": 880,
+    "gridHeight": 430,
+    "scriptedResult": [
+      [3, 0, 4],
+      [1, 2, 0],
+      [4, 3, 2],
+      [0, 4, 0],
+      [3, 1, 3]
+    ],
+    "scriptedResultNote": "Column-major [col][row] of SaveTotoSymbolId. Scatter (Toto=4) at: col1-row2, col2-row0, col3-row1 = 3 scatters.",
+    "symbolPrefabById": {
+      "0": "SaveTotoSymbolOz",
+      "1": "SaveTotoSymbolKey",
+      "2": "SaveTotoSymbolDrop",
+      "3": "SaveTotoSymbolBasket",
+      "4": "SaveTotoSymbolTotoScatter"
+    }
+  },
+  "bonusGrid": {
+    "basketCount": 6,
+    "layout": "3x2",
+    "cellWidth": 260,
+    "cellHeight": 210,
+    "horizontalGap": 48,
+    "verticalGap": 36,
+    "position": "over ReelRoot",
+    "arrangement": [
+      ["Basket_01", "Basket_02", "Basket_03"],
+      ["Basket_04", "Basket_05", "Basket_06"]
+    ],
+    "rewardByPickIndex": [
+      { "pickIndex": 0, "rewardId": "pick-1-credit-small", "kind": "CREDIT", "value": 250000, "label": "250K" },
+      { "pickIndex": 1, "rewardId": "pick-2-multiplier", "kind": "MULTIPLIER", "value": 3, "label": "x3" },
+      { "pickIndex": 2, "rewardId": "pick-3-credit-big", "kind": "CREDIT", "value": 1000000, "label": "1M" }
+    ]
+  },
+  "interactive": ["SpinButton", "Basket_01", "Basket_02", "Basket_03", "Basket_04", "Basket_05", "Basket_06", "PlayNowButton"],
+  "wiring": {
+    "note": "Explicit serialized property references (SCENE_SETUP.md §9). No runtime find()/getChildByName().",
+    "SaveTotoBootstrap": {
+      "stateMachine": "System/StateMachine",
+      "gameConfig": "System/GameConfig",
+      "slotController": "Canvas/SlotLayer/Slot",
+      "spinsController": "System/SpinsController",
+      "spinButtonController": "Canvas/HudLayer/SpinButton",
+      "rewardController": "System/RewardController",
+      "elementConfiguration": "System/ElementConfiguration",
+      "winAnimationConfiguration": "System/WinAnimationConfiguration",
+      "columnMovementEffect": "optional: SaveTotoMovementEffectBehaviour component on Slot",
+      "forcedManagerNode": "System/ForcedSpawnManager",
+      "ctaScreen": "System/CTAScreen",
+      "vfxSpawner": "optional"
+    },
+    "SaveTotoStateMachine": {
+      "gameConfig": "System/GameConfig",
+      "slotController": "Canvas/SlotLayer/Slot",
+      "slotView": "System/SlotView",
+      "threatView": "System/ThreatView",
+      "bonusView": "Canvas/SlotLayer/Slot/BonusRoot",
+      "hudView": "System/HudView",
+      "endCardView": "Canvas/EndCardLayer",
+      "spinsController": "System/SpinsController",
+      "spinButtonController": "Canvas/HudLayer/SpinButton",
+      "rewardController": "System/RewardController",
+      "ctaButton": "Canvas/EndCardLayer/PlayNowButton"
+    },
+    "SaveTotoSlotController": {
+      "columns": ["Canvas/SlotLayer/Slot/ReelRoot/Columns/Column_1", "Column_2", "Column_3", "Column_4", "Column_5"]
+    },
+    "SaveTotoThreatView": {
+      "fireNode": "Canvas/ThreatLayer/FireRoot/FireSprite",
+      "lockViews": ["LockLeft", "LockCenter", "LockRight"],
+      "cageRoot": "Canvas/ThreatLayer/CageRoot",
+      "totoRoot": "Canvas/ThreatLayer/CageRoot/CageSwingRoot/TotoRoot",
+      "lightFxNode": "Canvas/ThreatLayer/FireRoot/LightFx"
+    },
+    "SaveTotoSlotView": {
+      "slotController": "Canvas/SlotLayer/Slot",
+      "balanceLabel": "Canvas/SlotLayer/WinBalanceRoot/BalancePanel/BalanceLabel",
+      "winLabel": "Canvas/SlotLayer/WinBalanceRoot/WinPanel/WinValueLabel"
+    },
+    "SaveTotoBonusView": {
+      "bonusRoot": "Canvas/SlotLayer/Slot/BonusRoot",
+      "basketViews": ["Basket_01", "Basket_02", "Basket_03", "Basket_04", "Basket_05", "Basket_06"],
+      "instructionLabel": "Canvas/SlotLayer/Slot/BonusRoot/InstructionLabel"
+    },
+    "SaveTotoHudView": {
+      "spinButtonNode": "Canvas/HudLayer/SpinButton",
+      "spinButton": "Canvas/HudLayer/SpinButton (Button)",
+      "ctaButtonNode": "Canvas/HudLayer/CtaButton",
+      "ctaButton": "Canvas/HudLayer/CtaButton (Button)"
+    },
+    "SaveTotoElementConfiguration": {
+      "note": "elementTypes[] with id matching SaveTotoSymbolId; bonusElementTypes[]: Toto isScatter=true; basket/key/drop/oz as regular elementTypes.",
+      "scatterElementId": 4,
+      "regularSymbolIds": [0, 1, 2, 3]
+    }
+  },
+  "assemblyNotes": [
+    "Generator не создаёт .meta вручную; .meta генерирует Cocos-импортер.",
+    "SpriteFrame/AnimationClip/script UUID неизвестны до импорта — ссылки оставлять пустыми и заполнять в Cocos editor (manual wiring task).",
+    "Runtime не использует find()/getChildByName() для gameplay wiring (AGENTS.md §3).",
+    "Все координаты — из blueprint/config, не из gameplay-кода (AUTO_SCENE_ASSEMBLY_PLAN.md §7).",
+    "Visual animations подключаются через .anim clips из assets/animations/save-toto/**, не хардкод-твины в state machine."
+  ]
+}

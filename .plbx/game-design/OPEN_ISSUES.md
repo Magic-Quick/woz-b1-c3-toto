@@ -2,8 +2,8 @@
 document_type: 'open_issues'
 project_id: 'WOZ_B1_C3_SaveToto'
 language: 'ru'
-version: '1.1.0'
-status: 'partially_resolved'
+version: '1.2.0'
+status: 'code_layer_done_scene_wiring_pending'
 date: '2026-06-28'
 ---
 
@@ -84,3 +84,42 @@ date: '2026-06-28'
 - Открытыми остаются только вопросы, требующие будущего client/audio/VFX review: финальный paytable, финальные values, particles/`.anim` implementation, sound pack, landscape.
 - QA checklist обновлён под принятые решения.
 - GDD и scene setup синхронизированы после изменений.
+
+## 8. Статус реализации (фаза code layer + scene blueprint)
+
+### 8.1. Завершено
+
+| Артефакт | Статус |
+|---|---|
+| Код-слой `assets/scripts/save-toto/**` (foundation: types, config, events, view interfaces) | Done |
+| Миграция slot template core под `SaveToto*` (SlotController, SlotColumn, ElementConfiguration, ForcedSpawnManager, WinChecker, RewardController, SpinButtonController, VFXSpawner, CTAScreen, Bootstrap, Animations, ScrollEffects, Elements) | Done |
+| SaveToto-specific системы: SaveTotoStateMachine, views (Threat/Slot/Bonus/Hud/EndCard), LockUnlockController, StoreAdapter, AnalyticsAdapter | Done |
+| `SaveTotoScatterEvaluator` (primary bonus gate) + cell-based forced rules (scripted 3-scatter) | Done |
+| TypeScript-компиляция код-слоя — без ошибок (engine `cc.d.ts` noise игнорируется редактором) | Done |
+| `scene-blueprint.json` — data-контракт сцены из `SCENE_SETUP.md` | Done |
+
+### 8.2. Принятые архитектурные решения в реализации
+
+- `SaveTotoSpinButtonController` — **input-only**: эмитит `EVT_SPIN_CLICK`, НЕ драйвит slot и НЕ списывает спины. State machine оркестрирует spin через `SlotController.startAllColumnsMovement()` (соответствие `ARCHITECTURE.md` §12 mermaid). Input lock — через выключение кнопки state machine'ом.
+- Scripted spin гарантируется `SaveTotoForcedSpawnManager` с **cell-based правилами** (`ISaveTotoForcedCellRule`), построенными в `SaveTotoBootstrap.initForcedScriptedResult()` из `config.reel.scriptedResult` (OI-403: scripted visible result map, не только line forced rules).
+- Scatter — основной gate (`SaveTotoScatterEvaluator`, символ Тото, OI-201). Line wins вторичны (`SaveTotoWinChecker`, 5-col).
+- Generic CTA-after-spins **отключён** (OI-407): `SaveTotoBootstrap` не показывает CTA; CTA показывается только `SaveTotoStateMachine` после `Payout`.
+- `WIN` — фиксированный visual label (OI-204); balance — главный counter (`SaveTotoSlotView.countBalanceTo`).
+- Все string-lookup `'SlotElement'` заменены на типизированный `getComponent(SaveTotoSlotElement)`.
+
+### 8.3. Открытые задачи (editor-side, требуют Cocos Creator)
+
+| ID | Статус | Задача |
+|---|---|---|
+| `OI-501` | Open | Импорт `assets/scripts/save-toto/**` в Cocos для генерации `.ts.meta` (UUID скриптов). Без этого невозможно привязать компоненты в .scene/.prefab. |
+| `OI-502` | Open | Создание prefabs `assets/prefabs/save-toto/**` по `scene-blueprint.json` (SaveTotoSlotSymbol×5, SaveTotoBasket, SaveTotoLock, SaveTotoCtaButton, SaveTotoMoneyBurst). `.meta` создаёт редактор. |
+| `OI-503` | Open | Сборка `assets/scene.scene` по blueprint: layers, template-compatible `Slot/Columns` (5), threat/slot/hud/fx/endcard layers, prefabs instances. |
+| `OI-504` | Open | Explicit wiring (serialized properties) по `scene-blueprint.json` → `wiring`. Заполнить ссылки в Inspector: Bootstrap, StateMachine, SlotController.columns[5], ThreatView.lockViews[3], BonusView.basketViews[6], SlotView refs. |
+| `OI-505` | Open | `SaveTotoElementConfiguration` Inspector: elementTypes (Oz=0, Key=1, Drop=2, Basket=3) + bonusElementTypes (Toto=4, isScatter=true) с prefab-ссылками на symbol prefabs. |
+| `OI-506` | Open | Создание `.anim` clips `assets/animations/save-toto/**` и привязка к prefabs через `Animation` component (ANIMATION_STRATEGY.md). MVP-view-твины должны мигрировать на `.anim`. |
+| `OI-507` | Open | Visual QA против `.plbx/reference/scene.png` после сборки сцены; сверка layout из SCENE_SETUP.md §5. |
+| `OI-508` | Open | Runtime-проверка scripted flow: spin → 3 scatter → bonus → 3 picks → locks/fire → packshot → balance count → CTA → store redirect. |
+
+### 8.4. Замечание по сцене
+
+Сборка `.scene`/`.prefab` с привязкой SpriteFrame/script UUID требует Cocos-редактора (`OI-501`): UUID скриптов и спрайтов генерируются импортёром, ручное создание `.meta` запрещено (`AGENTS.md` §3). `scene-blueprint.json` — source-of-truth для editor script / ручной сборки; Visual QA и explicit wiring — задачи `OI-504`/`OI-507`.

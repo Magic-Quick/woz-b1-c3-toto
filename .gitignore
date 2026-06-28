@@ -29,7 +29,9 @@ pnpm-debug.log*
 # IDE local settings
 .vscode/
 .idea/
-.plbx/
+
+# Local/heavy reference sources (docs in .plbx/game-design stay tracked)
+.plbx/reference/
 
 # Playable/export artifacts
 /dist/

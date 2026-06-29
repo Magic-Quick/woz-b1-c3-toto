@@ -11,7 +11,6 @@
 import { _decorator, Component, Label, Node, tween, Vec3, UIOpacity } from 'cc';
 import { SaveTotoSlotView as ISaveTotoSlotView } from '../interfaces/SaveTotoViews';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
-import { SaveTotoSlotElement } from '../Slot/Elements/SaveTotoSlotElement';
 import { SaveTotoSlotEvents } from '../events/SaveTotoEvents';
 import { SaveTotoScatterResult } from '../Slot/SaveTotoScatterEvaluator';
 import { SaveTotoScriptedReelResult } from '../types';
@@ -51,27 +50,56 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
         const result: SaveTotoScatterResult | null = this.slotController?.getScatterResult() ?? null;
         if (!result || result.positions.length === 0) return;
 
-        const columns = this.slotController.columns;
         const promises: Promise<void>[] = [];
 
         for (const [colIndex, rowIndex] of result.positions) {
-            const columnNode = columns[colIndex];
-            if (!columnNode) continue;
-            const elements = columnNode.children;
-            const elementNode = elements[rowIndex];
+            const elementNode = this.slotController.getElementNodeByPosition(colIndex, rowIndex);
             if (!elementNode) continue;
-            const slotElement = elementNode.getComponent(SaveTotoSlotElement);
-            if (slotElement?.picture) {
-                promises.push(this.blinkScatter(elementNode));
-            }
+            promises.push(this.blinkScatter(elementNode));
         }
 
         await Promise.all(promises);
     }
 
+    /** Highlight выигрышных элементов line-win (pulse + rotate + scale, мягче scatter). */
+    public async highlightWinElements(positions: [number, number][]): Promise<void> {
+        if (!this.slotController || positions.length === 0) return;
+        const promises: Promise<void>[] = [];
+
+        for (const [colIndex, rowIndex] of positions) {
+            const elementNode = this.slotController.getElementNodeByPosition(colIndex, rowIndex);
+            if (!elementNode) continue;
+            promises.push(this.pulseWinElement(elementNode));
+        }
+
+        await Promise.all(promises);
+    }
+
+    /** Выигрышный элемент: 2× pulse + лёгкий rotate + scale (мягче scatter). */
+    private pulseWinElement(node: Node): Promise<void> {
+        return new Promise<void>((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            // Таймаут-защита: если твин не завершился, резолвить через 1.5с.
+            setTimeout(finish, 1500);
+            tween(node)
+                .to(0.15, { scale: new Vec3(1.2, 1.2, 1.2), angle: 8 }, { easing: 'sineOut' })
+                .to(0.12, { scale: new Vec3(1, 1, 1), angle: -8 }, { easing: 'sineInOut' })
+                .to(0.15, { scale: new Vec3(1.15, 1.15, 1.15), angle: 5 }, { easing: 'sineOut' })
+                .to(0.12, { scale: new Vec3(1, 1, 1), angle: 0 }, { easing: 'sineInOut' })
+                .call(finish)
+                .start();
+        });
+    }
+
     /** Тройной мигающий pulse + light-вспышка под scatter-символом Тото. */
     private blinkScatter(node: Node): Promise<void> {
         return new Promise<void>((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            // Таймаут-защита.
+            setTimeout(finish, 2500);
+
             // Light-вспышка под символом: ищем дочерний "Light" узел (в Toto prefab).
             const lightNode = node.getChildByName('Light');
             if (lightNode) {
@@ -89,15 +117,15 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
                     .start();
             }
 
-            // Тройной scale-pulse символа.
+            // Тройной scale-pulse + rotate (отличие от line-win: 3× вместо 2×, масштабнее).
             tween(node)
-                .to(0.12, { scale: new Vec3(1.3, 1.3, 1.3) }, { easing: 'sineOut' })
-                .to(0.1, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
-                .to(0.12, { scale: new Vec3(1.25, 1.25, 1.25) }, { easing: 'sineOut' })
-                .to(0.1, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
-                .to(0.12, { scale: new Vec3(1.2, 1.2, 1.2) }, { easing: 'sineOut' })
-                .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
-                .call(() => resolve())
+                .to(0.12, { scale: new Vec3(1.3, 1.3, 1.3), angle: 10 }, { easing: 'sineOut' })
+                .to(0.1, { scale: new Vec3(1, 1, 1), angle: -10 }, { easing: 'sineIn' })
+                .to(0.12, { scale: new Vec3(1.25, 1.25, 1.25), angle: 8 }, { easing: 'sineOut' })
+                .to(0.1, { scale: new Vec3(1, 1, 1), angle: -8 }, { easing: 'sineIn' })
+                .to(0.12, { scale: new Vec3(1.2, 1.2, 1.2), angle: 5 }, { easing: 'sineOut' })
+                .to(0.12, { scale: new Vec3(1, 1, 1), angle: 0 }, { easing: 'sineIn' })
+                .call(finish)
                 .start();
         });
     }

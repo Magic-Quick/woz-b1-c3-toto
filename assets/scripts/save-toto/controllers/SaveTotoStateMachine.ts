@@ -6,7 +6,7 @@
  */
 
 import { _decorator, Component, Button, tween, UIOpacity } from 'cc';
-import { SaveTotoGameConfig, SaveTotoConfig } from '../config/SaveTotoGameConfig';
+import { SaveTotoGameConfig, SaveTotoConfig, SAVE_TOTO_SCRIPTED_REEL_RESULT, SAVE_TOTO_BONUS_REWARDS } from '../config/SaveTotoGameConfig';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotView } from '../views/SaveTotoSlotView';
 import { SaveTotoThreatView } from '../views/SaveTotoThreatView';
@@ -23,6 +23,9 @@ import { SaveTotoStoreAdapter } from '../adapters/SaveTotoStoreAdapter';
 import { SaveTotoEvents } from '../events/SaveTotoEvents';
 import { SaveTotoSlotEvents } from '../events/SaveTotoEvents';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
+import { SaveTotoCoinAnimation } from '../animations/SaveTotoCoinAnimation';
+import { SaveTotoCoinFountain } from '../animations/SaveTotoCoinFountain';
+import { SaveTotoSymbolId } from '../types';
 
 const { ccclass, property } = _decorator;
 
@@ -75,6 +78,12 @@ export class SaveTotoStateMachine extends Component {
     @property(Button)
     public ctaButton: Button = null!;
 
+    @property({ type: SaveTotoCoinAnimation, tooltip: 'Анимация монет к balance (опционально)' })
+    public coinAnimation: SaveTotoCoinAnimation | null = null;
+
+    @property({ type: SaveTotoCoinFountain, tooltip: 'Фонтан монет в финале (опционально)' })
+    public coinFountain: SaveTotoCoinFountain | null = null;
+
     public lockUnlockController: SaveTotoLockUnlockController;
     public analytics: SaveTotoAnalyticsAdapter;
     public store: SaveTotoStoreAdapter;
@@ -83,6 +92,8 @@ export class SaveTotoStateMachine extends Component {
     private picksDone: number = 0;
     private config: SaveTotoConfig | null = null;
     private logger = createSaveTotoLogger('SaveTotoStateMachine');
+    private spinNumber: number = 0;
+    private readonly totalSpins: number = 4;
 
     public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter): void {
         this.analytics = analytics;
@@ -92,9 +103,10 @@ export class SaveTotoStateMachine extends Component {
         for (const lockView of this.threatView.lockViews) {
             this.lockUnlockController.registerLockView(lockView.lockId, lockView);
         }
-        this.spinsController.setSpins(1);
-        // OI-511: Balance стартует пустым, наполняется по picks. Финальный payout считает до finalWinValue.
+        this.spinsController.setSpins(this.totalSpins);
+        // OI-511: Balance стартует с 0, наполняется по picks и простым выигрышам.
         this.slotView.setBalanceValue(0);
+        this.spinNumber = 0;
     }
 
     public startFlow(): void {
@@ -131,10 +143,11 @@ export class SaveTotoStateMachine extends Component {
 
     private async enterSpinning(): Promise<void> {
         this.state = SaveTotoState.Spinning;
-        this.logger.info('enterSpinning bind SPIN_COMPLETE');
+        this.spinNumber += 1;
+        this.logger.info(`enterSpinning #${this.spinNumber} bind SPIN_COMPLETE`);
         this.hudView.showSpinButton(false);
         this.spinsController.removeSpins(1);
-        this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_CLICK, payload: { tapIndex: 1 } });
+        this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_CLICK, payload: { tapIndex: this.spinNumber } });
 
         this.slotController.node.once(SaveTotoSlotEvents.SPIN_COMPLETE, (payload: SaveTotoSpinCompletePayload) => {
             this.logger.info(`received SPIN_COMPLETE scatterCount=${payload.scatterCount} triggersBonus=${payload.triggersBonus}`);
@@ -145,16 +158,68 @@ export class SaveTotoStateMachine extends Component {
 
     private async onSpinComplete(payload: SaveTotoSpinCompletePayload): Promise<void> {
         this.state = SaveTotoState.SpinResult;
-        this.logger.info(`onSpinComplete state=SpinResult scatterCount=${payload.scatterCount}`);
+        this.logger.info(`onSpinComplete state=SpinResult spin=${this.spinNumber} scatterCount=${payload.scatterCount}`);
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_RESULT, payload: { scatters: payload.scatterCount } });
 
-        if (!payload.triggersBonus) {
-            this.logger.warn('Spin не дал scatter-триггер; fallback в bonus по scripted контракту.');
+        // Bonus триггерится ТОЛЬКО на последнем спине (4). На spins 1-3 — простой выигрыш,
+        // даже если случайно выпал scatter (forced spawn на spin 4 гарантирует 3 Toto).
+        const isLastSpin = this.spinNumber >= this.totalSpins;
+
+        try {
+            if (isLastSpin) {
+                // Scatter highlight → bonus.
+                await this.slotView.highlightScatters();
+                this.logger.info('highlightScatters done -> enterBonusIntro');
+                this.enterBonusIntro();
+            } else if (this.spinNumber === 3) {
+                // Spin 3: пусто, без пополнения и анимации выигрыша.
+                await new Promise<void>((resolve) => setTimeout(resolve, 600));
+                this.enterSpinReady();
+            } else {
+                // Простой выигрыш на spins 1-2: highlight + монеты + balance.
+                await this.playSimpleWin();
+                this.enterSpinReady();
+            }
+        } catch (err) {
+            this.logger.error(`onSpinComplete error on spin ${this.spinNumber}: ${err}`);
+            // Safety fallback: не зависать — перейти к следующему спину или бонусу.
+            if (isLastSpin) {
+                this.enterBonusIntro();
+            } else {
+                this.enterSpinReady();
+            }
+        }
+    }
+
+    /** Простой выигрыш между спинами: highlight выигрышных символов + монеты + balance. */
+    private async playSimpleWin(): Promise<void> {
+        // Highlight выигрышных line-элементов (pulse + rotate + scale).
+        try {
+            const winPositions = this.slotController.getLastWinPositions();
+            if (winPositions.length > 0) {
+                await this.slotView.highlightWinElements(winPositions);
+            }
+        } catch (err) {
+            this.logger.warn(`highlightWinElements failed: ${err}`);
         }
 
-        await this.slotView.highlightScatters();
-        this.logger.info('highlightScatters done -> enterBonusIntro');
-        this.enterBonusIntro();
+        const baseWins = [50000, 80000, 120000];
+        const winAmount = baseWins[(this.spinNumber - 1) % baseWins.length] || 50000;
+
+        // Монеты к balance label (если coin animation привязан).
+        try {
+            if (this.coinAnimation) {
+                const reelWorld = this.slotController.node.worldPosition;
+                this.coinAnimation.play(reelWorld);
+            }
+        } catch (err) {
+            this.logger.warn(`coinAnimation failed: ${err}`);
+        }
+
+        await this.slotView.addBalanceValue(winAmount);
+
+        // Короткая пауза чтобы игрок увидел результат.
+        await new Promise<void>((resolve) => setTimeout(resolve, 400));
     }
 
     private async enterBonusIntro(): Promise<void> {
@@ -197,15 +262,20 @@ export class SaveTotoStateMachine extends Component {
         await this.bonusView.openBasket(basketIndex, reward);
         this.analytics.send({ name: SaveTotoEvents.EVT_REWARD_REVEALED, payload: { pickIndex, rewardId: reward.rewardId } });
 
+        const basketAnchor = this.bonusView.getBasketAnchor(basketIndex);
+
         // OI-511: balance наполняется суммой из корзины (credit) или умножается (multiplier).
         if (reward.kind === 0 /* SaveTotoRewardKind.CREDIT */) {
+            // Монеты из корзины к balance.
+            if (this.coinAnimation) {
+                this.coinAnimation.play(basketAnchor.worldPosition);
+            }
             await this.slotView.addBalanceValue(reward.value);
         } else if (reward.kind === 1 /* SaveTotoRewardKind.MULTIPLIER */) {
             await this.slotView.multiplyBalanceValue(reward.value);
         }
 
         // Key flight из позиции корзины к замку + open-lock swap.
-        const basketAnchor = this.bonusView.getBasketAnchor(basketIndex);
         const removedLock = await this.lockUnlockController.removeLockWithKey(pickIndex, basketAnchor.worldPosition);
         this.analytics.send({ name: SaveTotoEvents.EVT_LOCK_REMOVED, payload: { lockIndex: pickIndex, lockId: removedLock, locksRemaining: this.lockUnlockController.getRemainingLocks() } });
 
@@ -265,6 +335,12 @@ export class SaveTotoStateMachine extends Component {
     private async enterEndCard(finalWin: number): Promise<void> {
         this.state = SaveTotoState.EndCard;
         this.hudView.showCtaButton(false);
+
+        // Запустить endless фонтан монет за Тото.
+        if (this.coinFountain) {
+            this.coinFountain.play();
+        }
+
         await this.endCardView.show(finalWin);
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_CTA_SHOWN, payload: { finalWin } });
 

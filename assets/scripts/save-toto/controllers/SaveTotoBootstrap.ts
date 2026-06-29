@@ -24,6 +24,7 @@ import { SaveTotoStoreAdapter } from '../adapters/SaveTotoStoreAdapter';
 import { SaveTotoComponentValidator } from '../common/SaveTotoComponentValidator';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 import { ISaveTotoForcedCellRule } from '../interfaces/IForcedRule';
+import { SaveTotoSymbolId } from '../types';
 
 const { ccclass, property } = _decorator;
 
@@ -144,9 +145,27 @@ export class SaveTotoBootstrap extends Component {
             return;
         }
 
+        const cellRules: ISaveTotoForcedCellRule[] = [];
+
+        // Spin 1: 5 OZ в верхней линии (row 0).
+        cellRules.push({
+            spin: 1,
+            cells: [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]],
+            elementId: SaveTotoSymbolId.OZ,
+        });
+
+        // Spin 2: 5 BASKET в средней линии (row 1) + 5 BASKET в нижней линии (row 2).
+        cellRules.push({
+            spin: 2,
+            cells: [[0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2]],
+            elementId: SaveTotoSymbolId.BASKET,
+        });
+
+        // Spin 3: нет forced cells (пустой спин, без выигрыша).
+
+        // Spin 4: scripted scatter result (3+ Toto в заданных позициях).
         const scripted = config.reel.scriptedResult;
         const groupedBySymbol = new Map<number, [number, number][]>();
-
         for (let col = 0; col < scripted.length; col++) {
             const column = scripted[col];
             for (let row = 0; row < column.length; row++) {
@@ -157,14 +176,12 @@ export class SaveTotoBootstrap extends Component {
                 groupedBySymbol.get(symbolId)!.push([col, row]);
             }
         }
-
-        const cellRules: ISaveTotoForcedCellRule[] = [];
         groupedBySymbol.forEach((cells, elementId) => {
-            cellRules.push({ spin: 1, cells, elementId });
+            cellRules.push({ spin: 4, cells, elementId });
         });
 
         forcedManager.setCellRules(cellRules);
-        this.logger.success(`Scripted result применён: ${cellRules.length} cell-правил, scatter=${config.reel.scatterRequired}`);
+        this.logger.success(`Scripted result: spin1=5×OZ(row0), spin2=10×BASKET(row1+2), spin3=empty, spin4=scatter. ${cellRules.length} cell-rules total.`);
     }
 
     private hideCtaAtStart(): void {

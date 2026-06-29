@@ -86,11 +86,11 @@ export interface SaveTotoConfig {
  * 3 scatter-символа Тото: col1-row3, col3-row1, col4-row2.
  */
 export const SAVE_TOTO_SCRIPTED_REEL_RESULT: SaveTotoScriptedReelResult = [
-    [SaveTotoSymbolId.BASKET, SaveTotoSymbolId.OZ,     SaveTotoSymbolId.TOTO],   // column 1
-    [SaveTotoSymbolId.KEY,    SaveTotoSymbolId.DROP,   SaveTotoSymbolId.OZ],     // column 2
-    [SaveTotoSymbolId.TOTO,   SaveTotoSymbolId.BASKET, SaveTotoSymbolId.DROP],   // column 3
-    [SaveTotoSymbolId.OZ,     SaveTotoSymbolId.TOTO,   SaveTotoSymbolId.OZ],     // column 4
-    [SaveTotoSymbolId.BASKET, SaveTotoSymbolId.KEY,    SaveTotoSymbolId.BASKET],  // column 5
+    [SaveTotoSymbolId.TOTO, SaveTotoSymbolId.OZ,     SaveTotoSymbolId.BASKET],  // column 1
+    [SaveTotoSymbolId.TOTO, SaveTotoSymbolId.KEY,    SaveTotoSymbolId.DROP],   // column 2
+    [SaveTotoSymbolId.TOTO, SaveTotoSymbolId.BASKET, SaveTotoSymbolId.OZ],     // column 3
+    [SaveTotoSymbolId.TOTO, SaveTotoSymbolId.DROP,   SaveTotoSymbolId.KEY],    // column 4
+    [SaveTotoSymbolId.TOTO, SaveTotoSymbolId.OZ,     SaveTotoSymbolId.BASKET], // column 5
 ];
 
 /**

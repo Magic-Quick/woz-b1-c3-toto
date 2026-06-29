@@ -195,6 +195,29 @@ export class SaveTotoSlotController extends Component {
         this.currentSpinIndex += 1;
     }
 
+    /** Получить позиции выигрышных элементов последнего спина. */
+    public getLastWinPositions(): [number, number][] {
+        if (!this.winChecker) return [];
+        const visibleElements = this.getAllVisibleElements();
+        const winResults = this.winChecker.checkWinLines(visibleElements);
+        const positions: [number, number][] = [];
+        for (const winResult of winResults) {
+            const linePositions = this.winChecker.getWinLinePositions(winResult.lineIndex)
+                .slice(0, winResult.matchCount);
+            positions.push(...linePositions);
+        }
+        return positions;
+    }
+
+    /** Получить Node элемента по [colIndex, rowIndex] через centralized spawner. */
+    public getElementNodeByPosition(colIndex: number, rowIndex: number): Node | null {
+        const elements = this.centralizedSpawner?.getColumnElements(colIndex);
+        if (!elements) return null;
+        // Видимые элементы — первые N (0..visibleElements-1).
+        if (rowIndex < 0 || rowIndex >= elements.length) return null;
+        return elements[rowIndex] || null;
+    }
+
     private animateWinElements(winResults: IWinResult[]): void {
         this.stopAllWinAnimations();
         winResults.forEach(winResult => {

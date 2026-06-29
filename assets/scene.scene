@@ -6408,8 +6408,8 @@
     "startIntervalSec": 0.1,
     "totalElementsPerColumn": 10,
     "defaultVisibleElementsCount": 3,
-    "elementSpacing": 115,
-    "startY": -115,
+    "elementSpacing": 130,
+    "startY": -130,
     "_id": "ce7soQImtMx4ZpNV7BIIEI"
   },
   {
@@ -9989,7 +9989,7 @@
     "reelColumns": 5,
     "reelRows": 3,
     "totalElementsPerColumn": 10,
-    "elementSpacing": 115,
+    "elementSpacing": 130,
     "startIntervalSeconds": 0.1,
     "spinDurationSeconds": 1.5,
     "scatterRequired": 3,

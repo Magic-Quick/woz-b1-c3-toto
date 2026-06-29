@@ -336,12 +336,13 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.EndCard;
         this.hudView.showCtaButton(false);
 
-        // Запустить endless фонтан монет за Тото.
+        await this.endCardView.show(finalWin);
+
+        // Запустить endless фонтан монет за Тото (ПОСЛЕ show — EndCardLayer активен).
         if (this.coinFountain) {
             this.coinFountain.play();
         }
 
-        await this.endCardView.show(finalWin);
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_CTA_SHOWN, payload: { finalWin } });
 
         if (this.ctaButton) {

@@ -39,9 +39,10 @@ export class SaveTotoCoinFountain extends Component {
     private running = false;
     private spawnTimer = 0;
 
-    onLoad(): void {
-        this.node.active = false;
-    }
+    // НЕ вызываем this.node.active = false в onLoad — EndFountain стартует
+    // неактивным в сцене. onLoad срабатывает при первой активации EndCardLayer
+    // и если тут деактивировать ноду, фонтан погаснет сразу после show().
+    // Начальное состояние видимости — ответственность сцены.
 
     public play(): void {
         this.node.active = true;

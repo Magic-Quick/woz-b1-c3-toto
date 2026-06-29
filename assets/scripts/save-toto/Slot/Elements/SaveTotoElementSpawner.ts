@@ -13,8 +13,8 @@ export class SaveTotoElementSpawner {
     private visibleConfig: IVisibleElementsConfig = null;
     private totalElements: number = 5;
     private visibleElements: number = 3;
-    private elementSpacing: number = 140;
-    private startY: number = -140;
+    private elementSpacing: number = 115;
+    private startY: number = -115;
     private bonusElementTypes: IBonusElementType[] = [];
     private columnNode: Node = null;
 

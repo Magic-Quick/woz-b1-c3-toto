@@ -145,7 +145,7 @@ export class SaveTotoGameConfig extends Component {
     public totalElementsPerColumn: number = 10;
 
     @property({ type: CCFloat })
-    public elementSpacing: number = 142;
+    public elementSpacing: number = 115;
 
     @property({ type: CCFloat })
     public startIntervalSeconds: number = 0.1;

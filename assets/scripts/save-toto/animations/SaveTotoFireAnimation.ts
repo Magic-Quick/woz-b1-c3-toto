@@ -3,13 +3,13 @@
  *
  * Решает OI-203 v2: постоянная пульсация (яркость/контраст) + уровни снижаются
  * через высоту (scale.y) и интенсивность (opacity), ширина не меняется.
- * Для web runtime использует готовый animated WEBP через DOM overlay,
- * чтобы не раздувать bundle распаковкой в PNG sequence.
+ * Предпочитает сжатую PNG-sequence из resources и использует DOM overlay
+ * только как fallback для одиночного animated asset.
  * Unlock-последовательность использует 3 явные ступени затухания: 3 → 2 → 1 → 0.
  *
  * Привязывается к FireSprite node. ThreatView.setFireLevel() вызывает setLevel().
  */
-import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources, ImageAsset, UITransform, game, sys, director } from 'cc';
+import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources, Asset, UITransform, game, sys, director } from 'cc';
 
 const { ccclass, property } = _decorator;
 
@@ -48,8 +48,14 @@ export class SaveTotoFireAnimation extends Component {
     @property({ type: CCFloat, tooltip: 'Opacity на уровне 1' })
     public level1Opacity: number = 105;
 
-    @property({ type: CCString, tooltip: 'Resources path до animated WEBP без расширения' })
-    public animatedWebpResourcePath: string = 'save-toto/fire/fire';
+    @property({ type: CCString, tooltip: 'Resources path до папки с fire frame sequence' })
+    public sequenceFramesResourceDir: string = 'save-toto/fire';
+
+    @property({ type: CCFloat, tooltip: 'FPS для fire frame sequence' })
+    public sequenceFrameFps: number = 10;
+
+    @property({ type: CCString, tooltip: 'Resources path до animated fire asset без расширения' })
+    public animatedOverlayResourcePath: string = 'save-toto/fire/fire';
 
     private opacity: UIOpacity | null = null;
     private idleTween: any = null;
@@ -61,6 +67,10 @@ export class SaveTotoFireAnimation extends Component {
     private overlayImg: HTMLImageElement | null = null;
     private overlayContainer: HTMLElement | null = null;
     private overlayReady = false;
+    private sequenceFrames: SpriteFrame[] = [];
+    private sequenceReady = false;
+    private sequenceFrameIndex = 0;
+    private sequenceFrameTimer = 0;
 
     private getLevelProfile(level: 0 | 1 | 2 | 3): { scaleY: number; opacity: number; pulseAmplitude: number } {
         switch (level) {
@@ -109,15 +119,19 @@ export class SaveTotoFireAnimation extends Component {
         }
         this.node.setScale(new Vec3(this.baseScaleX, this.maxScaleY, 1));
         this.opacity.opacity = this.maxOpacity;
-        if (this.sprite && this.shouldUseAnimatedWebpOverlay()) {
+        if (this.sprite && (this.shouldUseSequenceFrames() || this.shouldUseAnimatedOverlay())) {
             this.sprite.spriteFrame = null;
         }
-        this.loadAnimatedWebpOverlay();
+        this.loadSequenceFrames();
         this.startIdlePulse();
     }
 
     update(dt: number): void {
-        void dt;
+        if (this.sequenceReady) {
+            this.advanceSequence(dt);
+            return;
+        }
+
         this.syncOverlayToNode();
     }
 
@@ -169,15 +183,47 @@ export class SaveTotoFireAnimation extends Component {
         if (this.opacity) Tween.stopAllByTarget(this.opacity);
     }
 
-    private shouldUseAnimatedWebpOverlay(): boolean {
-        return !!this.animatedWebpResourcePath && sys.isBrowser && typeof document !== 'undefined';
+    private shouldUseAnimatedOverlay(): boolean {
+        return !!this.animatedOverlayResourcePath && sys.isBrowser && typeof document !== 'undefined';
     }
 
-    private loadAnimatedWebpOverlay(): void {
-        if (!this.shouldUseAnimatedWebpOverlay()) return;
+    private shouldUseSequenceFrames(): boolean {
+        return !!this.sequenceFramesResourceDir;
+    }
 
-        resources.load(this.animatedWebpResourcePath, ImageAsset, (err, asset) => {
+    private loadSequenceFrames(): void {
+        if (!this.shouldUseSequenceFrames()) {
+            this.loadAnimatedOverlay();
+            return;
+        }
+
+        resources.loadDir(this.sequenceFramesResourceDir, SpriteFrame, (err, assets) => {
+            if (err || !assets || assets.length === 0 || !this.node?.isValid || !this.sprite) {
+                this.loadAnimatedOverlay();
+                return;
+            }
+
+            this.sequenceFrames = assets
+                .slice()
+                .sort((a, b) => this.extractFrameOrder(a.name) - this.extractFrameOrder(b.name));
+            this.sequenceReady = this.sequenceFrames.length > 0;
+            this.sequenceFrameIndex = 0;
+            this.sequenceFrameTimer = 0;
+            this.applySequenceFrame();
+        });
+    }
+
+    private loadAnimatedOverlay(): void {
+        if (!this.shouldUseAnimatedOverlay()) return;
+
+        resources.load(this.animatedOverlayResourcePath, Asset, (err, asset) => {
             if (err || !asset || !this.node?.isValid) {
+                this.restoreFallbackSprite();
+                return;
+            }
+
+            const nativeUrl = (asset as Asset & { nativeUrl?: string }).nativeUrl;
+            if (!nativeUrl) {
                 this.restoreFallbackSprite();
                 return;
             }
@@ -193,7 +239,7 @@ export class SaveTotoFireAnimation extends Component {
             }
 
             const img = document.createElement('img');
-            img.src = asset.nativeUrl;
+            img.src = nativeUrl;
             img.alt = 'fire';
             img.draggable = false;
             img.style.position = 'absolute';
@@ -216,6 +262,30 @@ export class SaveTotoFireAnimation extends Component {
         if (this.sprite && this.fallbackSpriteFrame) {
             this.sprite.spriteFrame = this.fallbackSpriteFrame;
         }
+    }
+
+    private extractFrameOrder(name: string): number {
+        const match = name.match(/(\d+)(?!.*\d)/);
+        return match ? parseInt(match[1], 10) : 0;
+    }
+
+    private advanceSequence(dt: number): void {
+        if (!this.sprite || this.sequenceFrames.length <= 1 || !this.node.activeInHierarchy || this.level <= 0) {
+            return;
+        }
+
+        const frameDuration = 1 / Math.max(this.sequenceFrameFps, 1);
+        this.sequenceFrameTimer += dt;
+        while (this.sequenceFrameTimer >= frameDuration) {
+            this.sequenceFrameTimer -= frameDuration;
+            this.sequenceFrameIndex = (this.sequenceFrameIndex + 1) % this.sequenceFrames.length;
+            this.applySequenceFrame();
+        }
+    }
+
+    private applySequenceFrame(): void {
+        if (!this.sprite || this.sequenceFrames.length === 0) return;
+        this.sprite.spriteFrame = this.sequenceFrames[this.sequenceFrameIndex] || this.sequenceFrames[0];
     }
 
     private syncOverlayToNode(): void {

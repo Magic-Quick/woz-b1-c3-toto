@@ -51,10 +51,10 @@ export class SaveTotoSlotController extends Component {
     public defaultVisibleElementsCount: number = 3;
 
     @property({ type: CCFloat })
-    public elementSpacing: number = 142;
+    public elementSpacing: number = 115;
 
     @property({ type: CCFloat })
-    public startY: number = -142;
+    public startY: number = -115;
 
     private winChecker: SaveTotoWinChecker = new SaveTotoWinChecker();
     private scatterEvaluator: SaveTotoScatterEvaluator = new SaveTotoScatterEvaluator();

@@ -7,11 +7,14 @@
  */
 import { _decorator, Component, Node, Label, tween, Vec3, UIOpacity, Button, Tween } from 'cc';
 import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
+import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
 
 @ccclass('SaveTotoEndCardView')
 export class SaveTotoEndCardView extends Component {
+    private logger = createSaveTotoLogger('SaveTotoEndCardView');
+
     @property(Node)
     public root: Node = null!;
 
@@ -19,10 +22,17 @@ export class SaveTotoEndCardView extends Component {
     public endTotoRoot: Node = null!;
 
     @property(Label)
-    public endWinLabel: Label = null!;
+    public endWinLabel: Label | null = null;
+
+    @property(Label)
+    public endLegalLabel: Label | null = null;
 
     @property(Button)
     public playNowButton: Button = null!;
+
+    protected onLoad(): void {
+        this.validateBindings();
+    }
 
     // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad (см. OI-509).
     public hideImmediate(): void {
@@ -37,8 +47,12 @@ export class SaveTotoEndCardView extends Component {
     }
 
     public async show(finalWin: number): Promise<void> {
+        this.validateBindings();
+
         if (this.endWinLabel) {
             this.endWinLabel.string = `${Math.round(finalWin)}`;
+        } else {
+            this.logger.warn(`Diagnostic: endWinLabel is not bound; finalWin=${Math.round(finalWin)} will not be rendered as text.`);
         }
         if (this.root) this.root.active = true;
 
@@ -67,6 +81,17 @@ export class SaveTotoEndCardView extends Component {
 
     public getPlayNowButton(): Button {
         return this.playNowButton;
+    }
+
+    private validateBindings(): void {
+        if (this.endWinLabel && this.endLegalLabel && this.endWinLabel.node === this.endLegalLabel.node) {
+            this.logger.warn('Diagnostic: endWinLabel and endLegalLabel point to the same node. Clearing endWinLabel to protect legal copy.');
+            this.endWinLabel = null;
+        }
+
+        if (this.endLegalLabel && !this.endLegalLabel.string.trim()) {
+            this.logger.warn('Diagnostic: endLegalLabel is bound but empty.');
+        }
     }
 
     /** Happy-анимация Тото: ритмичный bounce на toto-full sprite. */

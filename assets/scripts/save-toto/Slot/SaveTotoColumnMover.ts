@@ -28,7 +28,7 @@ function linearInterpolate(startPos: Vec3, targetPos: Vec3, t: number): Vec3 {
 export class SaveTotoColumnMover {
     private totalElements: number = 5;
     private visibleElements: number = 3;
-    private elementSpacing: number = 140;
+    private elementSpacing: number = 115;
     private elementSpawner: SaveTotoElementSpawner = null;
     private isMoving: boolean = false;
     private movingElements: Node[] = [];

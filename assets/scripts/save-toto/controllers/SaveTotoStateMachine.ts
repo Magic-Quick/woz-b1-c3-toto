@@ -5,7 +5,7 @@
  * Добавлены info-логи по цепочке spin -> bonus intro.
  */
 
-import { _decorator, Component, Button } from 'cc';
+import { _decorator, Component, Button, tween, UIOpacity } from 'cc';
 import { SaveTotoGameConfig, SaveTotoConfig } from '../config/SaveTotoGameConfig';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotView } from '../views/SaveTotoSlotView';
@@ -197,9 +197,11 @@ export class SaveTotoStateMachine extends Component {
         await this.bonusView.openBasket(basketIndex, reward);
         this.analytics.send({ name: SaveTotoEvents.EVT_REWARD_REVEALED, payload: { pickIndex, rewardId: reward.rewardId } });
 
-        // OI-511: balance наполняется суммой из корзины (credit rewards).
+        // OI-511: balance наполняется суммой из корзины (credit) или умножается (multiplier).
         if (reward.kind === 0 /* SaveTotoRewardKind.CREDIT */) {
             await this.slotView.addBalanceValue(reward.value);
+        } else if (reward.kind === 1 /* SaveTotoRewardKind.MULTIPLIER */) {
+            await this.slotView.multiplyBalanceValue(reward.value);
         }
 
         // Key flight из позиции корзины к замку + open-lock swap.
@@ -228,12 +230,36 @@ export class SaveTotoStateMachine extends Component {
 
         await this.threatView.playPackshotTransition();
 
-        const finalWin = this.config!.payout.finalWinValue;
-        this.analytics.send({ name: SaveTotoEvents.EVT_BALANCE_COUNT_START, payload: { targetValue: finalWin } });
-        await this.slotView.countBalanceTo(finalWin, this.config!.payout.countDurationSeconds);
-        this.analytics.send({ name: SaveTotoEvents.EVT_BALANCE_COUNT_COMPLETE, payload: { finalValue: finalWin } });
+        // Баланс уже фактический после picks (credit + multiplier). НЕ крутим до 10M.
+        const finalWin = this.slotView.getBalanceValue();
+
+        // Скрыть лишние спрайты (slot/threat слои) — экран пустеет перед финалом.
+        await this.hideGameplayLayers();
 
         this.enterEndCard(finalWin);
+    }
+
+    /** Скрыть gameplay-слои (SlotLayer, ThreatLayer) перед показом endcard. */
+    private async hideGameplayLayers(): Promise<void> {
+        const slotLayer = this.slotView.node;
+        const threatLayer = this.threatView.node;
+        const layers = [slotLayer, threatLayer].filter(n => n && n.isValid);
+        if (layers.length === 0) return;
+        return new Promise<void>((resolve) => {
+            let done = 0;
+            const total = layers.length;
+            for (const layer of layers) {
+                const op = layer.getComponent(UIOpacity) || layer.addComponent(UIOpacity);
+                tween(op)
+                    .to(0.4, { opacity: 0 }, { easing: 'sineIn' })
+                    .call(() => {
+                        layer.active = false;
+                        done++;
+                        if (done >= total) resolve();
+                    })
+                    .start();
+            }
+        });
     }
 
     private async enterEndCard(finalWin: number): Promise<void> {

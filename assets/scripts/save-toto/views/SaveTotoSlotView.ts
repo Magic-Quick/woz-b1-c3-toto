@@ -106,6 +106,11 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
         return this.slotController?.getScatterResult()?.count ?? 0;
     }
 
+    public getBalanceValue(): number {
+        if (!this.balanceLabel) return 0;
+        return parseFloat(this.balanceLabel.string) || 0;
+    }
+
     public setBalanceValue(value: number): void {
         if (this.balanceLabel) {
             this.balanceLabel.string = `${Math.round(Math.max(0, value))}`;
@@ -118,6 +123,29 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
         const from = parseFloat(this.balanceLabel.string) || 0;
         const to = from + delta;
         const durationSec = 0.6;
+        const start = Date.now();
+        const dur = durationSec * 1000;
+        return new Promise<void>((resolve) => {
+            const tick = () => {
+                const t = Math.min((Date.now() - start) / dur, 1);
+                const v = Math.round(from + (to - from) * t);
+                this.balanceLabel.string = `${v}`;
+                if (t < 1) {
+                    requestAnimationFrame(tick);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(tick);
+        });
+    }
+
+    /** Умножить balance на multiplier (count-up для вау-эффекта множителя). */
+    public async multiplyBalanceValue(multiplier: number): Promise<void> {
+        if (!this.balanceLabel || multiplier <= 0) return;
+        const from = parseFloat(this.balanceLabel.string) || 0;
+        const to = Math.round(from * multiplier);
+        const durationSec = 0.7;
         const start = Date.now();
         const dur = durationSec * 1000;
         return new Promise<void>((resolve) => {

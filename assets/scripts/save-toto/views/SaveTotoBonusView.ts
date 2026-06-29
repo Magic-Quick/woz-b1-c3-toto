@@ -1,6 +1,10 @@
 /**
- * Save Toto — view bonus-слоя (implements SaveTotoBonusView).
- * 6 корзин, 3 выбора, reward-by-pick-index. Не выбранные корзины остаются закрытыми (OI-006).
+ * Save Toto — view bonus-слоя.
+ *
+ * PRESENTATION FIX 2026-06-29:
+ * - explicit `reelRoot` ref
+ * - при showBaskets() reel скрывается, чтобы бонусная сетка была очевидна визуально
+ * - при hideBaskets() reel остаётся скрытым (дальше идёт payout/endcard)
  */
 
 import { _decorator, Component, Node, tween, Vec3, UIOpacity } from 'cc';
@@ -21,6 +25,10 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     @property(Node)
     public instructionLabel: Node = null!;
 
+    /** Reel скрывается в момент входа в bonus, чтобы сетка корзин была очевидна. */
+    @property(Node)
+    public reelRoot: Node | null = null;
+
     onLoad(): void {
         this.hideImmediate();
     }
@@ -31,18 +39,32 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     }
 
     public async showBaskets(): Promise<void> {
+        if (this.reelRoot) {
+            this.reelRoot.active = false;
+        }
         if (this.bonusRoot) this.bonusRoot.active = true;
         if (this.instructionLabel) this.instructionLabel.active = true;
 
         const op = this.bonusRoot.getComponent(UIOpacity) || this.bonusRoot.addComponent(UIOpacity);
         op.opacity = 0;
 
-        // Все корзины включены и доступны до первого выбора.
-        this.basketViews.forEach(v => v.setEnabled(true));
+        const basketGrid = this.basketViews.length > 0 ? this.basketViews[0].node.parent : null;
+        const originalGridScale = basketGrid?.scale.clone() ?? new Vec3(1, 1, 1);
+        if (basketGrid) {
+            basketGrid.setScale(new Vec3(originalGridScale.x * 0.88, originalGridScale.y * 0.88, originalGridScale.z));
+            tween(basketGrid)
+                .to(0.35, { scale: originalGridScale }, { easing: 'backOut' })
+                .start();
+        }
+
+        this.basketViews.forEach(v => {
+            v.node.active = true;
+            v.setEnabled(true);
+        });
 
         return new Promise<void>((resolve) => {
             tween(op)
-                .to(0.4, { opacity: 255 })
+                .to(0.35, { opacity: 255 })
                 .call(() => resolve())
                 .start();
         });
@@ -75,9 +97,7 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
         const view = this.basketViews[index];
         if (!view) return;
 
-        // Блокируем остальные корзины на время unlock sequence.
         this.setAllBasketsEnabled(false);
-
         await view.playSelected(reward);
     }
 
@@ -86,7 +106,6 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
         return view?.node ?? this.node;
     }
 
-    /** Раскрыть оставшиеся корзины декоративно (опционально, polish). */
     public revealRemaining(): void {
         // MVP: оставшиеся корзины остаются закрытыми (OI-006).
     }

@@ -67,13 +67,16 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
     private flyKey(keyFromWorldPos: Vec3): Promise<void> {
         return new Promise<void>((resolve) => {
             const root = this.keyFlightRoot!;
+            // Активируем root (иначе дочерние ноды не рендерятся).
+            root.active = true;
             const keyNode = new Node('KeyFlight');
             root.addChild(keyNode);
             const sprite = keyNode.addComponent(Sprite);
             sprite.spriteFrame = this.keySpriteFrame!;
-            sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-            const tr = keyNode.getComponent('cc.UITransform') as any || keyNode.addComponent('cc.UITransform' as any);
-            tr.setContentSize(80, 80);
+            sprite.sizeMode = Sprite.SizeMode.TRIMMED;
+            // UITransform уже добавляется компонентом Sprite; задаём размер.
+            const tr = keyNode.getComponent('cc.UITransform') as any;
+            tr.setContentSize(90, 90);
 
             const localFrom = root.inverseTransformPoint(new Vec3(), keyFromWorldPos);
             keyNode.setPosition(localFrom);
@@ -100,12 +103,13 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
         });
     }
 
-    /** Swap спрайта замка на open-lock. */
+    /** Swap спрайта замка на open-lock (с native размером, без искажений). */
     private swapToOpenLock(): void {
         if (!this.openLockSpriteFrame) return;
         const sprite = this.node.getComponent(Sprite);
         if (sprite) {
             sprite.spriteFrame = this.openLockSpriteFrame;
+            sprite.sizeMode = Sprite.SizeMode.TRIMMED;
         }
     }
 }

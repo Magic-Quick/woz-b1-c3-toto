@@ -108,7 +108,7 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
 
     public setBalanceValue(value: number): void {
         if (this.balanceLabel) {
-            this.balanceLabel.string = value <= 0 ? '' : `${Math.round(value)}`;
+            this.balanceLabel.string = `${Math.round(Math.max(0, value))}`;
         }
     }
 

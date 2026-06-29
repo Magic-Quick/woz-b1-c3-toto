@@ -6,7 +6,7 @@
  * Градиент генерируется программно (вертикальный: прозрачный → тёмный → прозрачный),
  * чтобы создать плавное затемнение reels без резких краёв.
  */
-import { _decorator, Component, Node, tween, Vec3, UIOpacity, Sprite, SpriteFrame, Texture2D, ImageAsset } from 'cc';
+import { _decorator, Component, Node, tween, Vec3, UIOpacity, Sprite, Graphics, Color } from 'cc';
 import { SaveTotoBonusView as ISaveTotoBonusView } from '../interfaces/SaveTotoViews';
 import { SaveTotoBasketView } from './SaveTotoBasketView';
 import { SaveTotoBonusReward } from '../types';
@@ -35,48 +35,50 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
         if (this.dimmerNode) this.dimmerNode.active = false;
     }
 
+    private gradientBuilt = false;
+
     onLoad(): void {
-        this.buildGradientTexture();
+        // Градиент строим lazily в showBaskets (onLoad может не успеть для неактивной ноды).
     }
 
     /** Программно создать вертикальный градиент для dimmer (transparent→dark→transparent). */
-    private buildGradientTexture(): void {
-        if (!this.dimmerNode) return;
-        const W = 16;
-        const H = 64;
-        const buf = new Uint8Array(W * H * 4);
-        for (let y = 0; y < H; y++) {
-            // Vignette: alpha 0 на краях, ~210 в середине.
-            const t = y / (H - 1); // 0..1
-            const v = Math.sin(t * Math.PI); // 0..1..0
-            const alpha = Math.round(210 * v);
-            for (let x = 0; x < W; x++) {
-                const i = (y * W + x) * 4;
-                buf[i] = 0;     // R
-                buf[i + 1] = 0; // G
-                buf[i + 2] = 0; // B
-                buf[i + 3] = alpha;
-            }
-        }
-        const img = new ImageAsset();
-        const src = { width: W, height: H, format: Texture2D.PixelFormat.RGBA8888, _data: buf };
-        img.reset(src as any);
-        const tex = new Texture2D();
-        tex.image = img;
-        const sf = new SpriteFrame();
-        sf.texture = tex;
+    /** Построить градиентный dimmer через cc.Graphics (без runtime-текстур → нет WebGL-ошибок). */
+    private buildGradientDimmer(): void {
+        if (this.gradientBuilt || !this.dimmerNode) return;
 
-        const sprite = this.dimmerNode.getComponent(Sprite) || this.dimmerNode.addComponent(Sprite);
-        sprite.spriteFrame = sf;
-        sprite.type = Sprite.Type.SIMPLE;
-        // Stretch во весь dimmer.
+        // Гарантируем UITransform с размером, покрывающим reels.
+        let ut = this.dimmerNode.getComponent('cc.UITransform') as any;
+        if (!ut) ut = this.dimmerNode.addComponent('cc.UITransform' as any);
+        ut.setContentSize(960, 480);
+        // Позиция: центр dimmer над reels (ReelRoot y≈-20, BonusRoot y≈-150 → local y≈130).
+        this.dimmerNode.setPosition(0, 130, 0);
+
+        // Рисуем вертикальный градиент полосками: alpha 0 сверху → ~210 в середине → 0 снизу.
+        const g = this.dimmerNode.getComponent(Graphics) || this.dimmerNode.addComponent(Graphics);
+        g.clear();
+        const W = 960;
+        const H = 480;
+        const strips = 24;
+        const stripH = H / strips;
+        for (let i = 0; i < strips; i++) {
+            const t = (i + 0.5) / strips;            // 0..1 сверху вниз
+            const v = Math.sin(t * Math.PI);          // 0..1..0
+            const alpha = Math.round(210 * v);
+            g.fillColor = new Color(0, 0, 0, alpha);
+            const y = H / 2 - (i + 1) * stripH;       // сверху вниз
+            g.rect(-W / 2, y, W, stripH);
+            g.fill();
+        }
+
         const op = this.dimmerNode.getComponent(UIOpacity) || this.dimmerNode.addComponent(UIOpacity);
         op.opacity = 0;
         this.dimmerNode.active = false;
+        this.gradientBuilt = true;
     }
 
     public async showBaskets(): Promise<void> {
         // OI-512: НЕ убираем reels — закрываем градиентным оверлэем.
+        this.buildGradientDimmer();
         if (this.dimmerNode) {
             this.dimmerNode.active = true;
             const dop = this.dimmerNode.getComponent(UIOpacity) || this.dimmerNode.addComponent(UIOpacity);

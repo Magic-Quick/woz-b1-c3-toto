@@ -90,14 +90,18 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
             await packshotAnimation.play();
         }
 
-        // Клетка полностью исчезает; Тото остаётся непрозрачным.
-        if (this.cageRoot) {
-            const cageOp = this.cageRoot.getComponent(UIOpacity) || this.cageRoot.addComponent(UIOpacity);
+        // Клетка (CageBase) полностью исчезает; Тото (TotoRoot) остаётся непрозрачным.
+        // ВАЖНО: fade только CageBase, НЕ cageRoot — TotoRoot его потомок.
+        const cageBase = this.cageRoot?.getChildByName('CageSwingRoot')?.getChildByName('CageBase') ?? null;
+        const cageSwing = this.cageRoot?.getChildByName('CageSwingRoot') ?? null;
+        const fadeTarget = cageBase || cageSwing;
+        if (fadeTarget) {
+            const cageOp = fadeTarget.getComponent(UIOpacity) || fadeTarget.addComponent(UIOpacity);
             await new Promise<void>((resolve) => {
                 tween(cageOp)
                     .to(0.5, { opacity: 0 }, { easing: 'sineIn' })
                     .call(() => {
-                        this.cageRoot.active = false;
+                        fadeTarget.active = false;
                         resolve();
                     })
                     .start();
@@ -121,15 +125,17 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     public async playTotoFreed(): Promise<void> {
         if (!this.totoRoot) return;
-        // Усиленный happy bounce: Тото появляется/подпрыгивает.
-        return new Promise<void>((resolve) => {
-            tween(this.totoRoot)
-                .to(0.18, { scale: new Vec3(1.18, 1.18, 1.18) }, { easing: 'backOut' })
-                .to(0.16, { scale: new Vec3(0.94, 0.94, 1) }, { easing: 'sineInOut' })
-                .to(0.2, { scale: new Vec3(1.08, 1.08, 1.08) }, { easing: 'sineOut' })
-                .to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'sineInOut' })
-                .call(() => resolve())
-                .start();
-        });
+        // Бесконечный happy bounce loop (Тото остаётся непрозрачным, клетка уже исчезла).
+        const base = this.totoRoot.scale.clone();
+        tween(this.totoRoot)
+            .to(0.25, { scale: new Vec3(base.x * 1.1, base.y * 1.1, 1) }, { easing: 'sineOut' })
+            .to(0.2, { scale: new Vec3(base.x * 0.96, base.y * 0.96, 1) }, { easing: 'sineIn' })
+            .to(0.22, { scale: new Vec3(base.x * 1.05, base.y * 1.05, 1) }, { easing: 'sineOut' })
+            .to(0.2, { scale: base }, { easing: 'sineInOut' })
+            .union()
+            .repeatForever()
+            .start();
+        // Короткая задержка чтобы loop стартовал видимо.
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
     }
 }

@@ -34,11 +34,20 @@ export class SaveTotoFireAnimation extends Component {
     public minOpacity: number = 90;
 
     private opacity: UIOpacity | null = null;
-    private idleTween: Tween<Node> | null = null;
+    private idleTween: any = null;
     private level = 3;
 
     onLoad(): void {
         this.opacity = this.node.getComponent(UIOpacity) || this.node.addComponent(UIOpacity);
+        // FIX: anchor снизу — чтобы scaleY опускал только верхнюю часть, низ неподвижен.
+        const ut = this.node.getComponent('cc.UITransform') as any;
+        if (ut) {
+            const halfH = ut.height / 2;
+            ut.anchorY = 0;
+            // Сдвинуть позицию вниз на halfH, чтобы визуально низ остался там же.
+            const p = this.node.position;
+            this.node.setPosition(p.x, p.y - halfH, p.z);
+        }
         this.node.setScale(new Vec3(this.baseScaleX, this.maxScaleY, 1));
         this.opacity.opacity = this.maxOpacity;
         this.startIdlePulse();

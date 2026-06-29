@@ -62,7 +62,7 @@ export class SaveTotoEndCardView extends Component {
         return this.playNowButton;
     }
 
-    /** Happy-анимация Тото: ритмичный bounce на собранном Toto (body+head+tongue). */
+    /** Happy-анимация Тото: ритмичный bounce на toto-full sprite. */
     private playTotoHappy(): void {
         if (!this.endTotoRoot) return;
         const base = this.endTotoRoot.scale.clone();

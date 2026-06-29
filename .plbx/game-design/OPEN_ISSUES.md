@@ -2,9 +2,9 @@
 document_type: 'open_issues'
 project_id: 'WOZ_B1_C3_SaveToto'
 language: 'ru'
-version: '1.2.0'
-status: 'code_layer_done_scene_wiring_pending'
-date: '2026-06-28'
+version: '1.3.0'
+status: 'animation_layer_script_tween_done_anim_migration_pending'
+date: '2026-06-29'
 ---
 
 # Пробелы логики и неуточнённые моменты `Save Toto`
@@ -40,7 +40,7 @@ date: '2026-06-28'
 |---|---|---|---|---|
 | `OI-201` | Resolved | Scatter — корзина или Toto-symbol | Scatter будет символ Тото (`assets/art/slot/symbol-toto.png`). | Обновить symbol mapping: `totoId` = scatter id |
 | `OI-202` | Resolved | Порядок снятия замков | Слева направо. | `lockOrder = ['left','center','right']` |
-| `OI-203` | Accepted assumption | Огонь: 4 отдельных уровня или scale/alpha | Есть один fire asset. Надо сделать уровни через разные анимации/scale/alpha/intensity. | `ThreatView.setFireLevel()` меняет animation preset, не texture |
+| `OI-203` | Resolved | Огонь: 4 отдельных уровня или scale/alpha | Реализовано через script-tween в `SaveTotoThreatView.setFireLevel()`: scale (0.4+t·0.6) + opacity tween (0 на level 0). Level 3→2→1→0 по pick'ам. `.anim` clip-версия — в OI-506b. |
 | `OI-204` | Resolved | Должен ли balance меняться | Balance увеличивается; в панели есть место под цифры. `WIN` — фиксированный/статичный label. | `BalanceController` animates count; `WinPanel` не главный counter |
 | `OI-205` | Resolved | Tap anywhere на end-card или только CTA | Активна только CTA-кнопка. | Whole-screen redirect выключен |
 | `OI-206` | Resolved | Можно ли пропускать spin/bonus animations | Анимации не пропускаем. Кнопка `SPIN` появляется/активируется только после окончания intro-анимации. | Strict input lock per state |
@@ -97,6 +97,7 @@ date: '2026-06-28'
 | `SaveTotoScatterEvaluator` (primary bonus gate) + cell-based forced rules (scripted 3-scatter) | Done |
 | TypeScript-компиляция код-слоя — без ошибок (engine `cc.d.ts` noise игнорируется редактором) | Done |
 | `scene-blueprint.json` — data-контракт сцены из `SCENE_SETUP.md` | Done |
+| Script-tween animation layer (OI-506a): 6 `SaveToto*Animation` компонентов навешаны на scene-nodes; reel mask + column-move-effect; bonus/cta lifecycle-фиксы | Done |
 
 ### 8.2. Принятые архитектурные решения в реализации
 
@@ -116,9 +117,13 @@ date: '2026-06-28'
 | `OI-503` | Done | Сборка `assets/scene.scene` по blueprint: 6 layers, threat (cage/toto/3 locks/fire/light), slot (5 SaveTotoSlotColumn + SaveTotoSlotController), bonus (6 BasketView+Button+Glow+RewardLabel), hud, fx, endcard, System nodes. 86 узлов, 19 custom-скриптов. |
 | `OI-504` | Done (partial) | Explicit wiring выполнен в `tools/build-scene.mjs`: Bootstrap→StateMachine/Slot/Spins/Reward/ElementConfig/ForcedMgr/CTAScreen; StateMachine→все views/ctaButton; SlotController.columns[5]; ThreatView.fireNode/lockViews[3]/cage/toto/light; BonusView.basketViews[6]; BasketView.basketButton/rewardLabel/glow; SlotView/HudView/EndCardView refs. НЕ завязано: ElementConfiguration prefab-ссылки (OI-505), CTAScreen.rewardAmount (опционально). |
 | `OI-505` | Pending (auto) | `ElementConfiguration` prefab-wiring: build-скрипт двухпроходный — после Cocos refresh (импорт prefabs → `.prefab.meta`) повторный запуск `node tools/build-scene.mjs` автоматически заполнит elementTypes (Oz/Key/Drop/Basket) + bonusElementTypes (Toto scatter). |
-| `OI-506` | Open | Создание `.anim` clips `assets/animations/save-toto/**` и привязка к prefabs через `Animation` component (ANIMATION_STRATEGY.md). MVP-view-твины (в SaveToto*View) должны мигрировать на `.anim`. |
+| `OI-506` | Done (partial) | Animation automation: idle + event-driven `SaveToto*Animation` script-компоненты (AutoPulse/AutoFloat/BasketSelected/LockOpenRemove/PackshotIntro/CtaPulse) навешаны на scene-nodes через `tools/attach-*.mjs`. View-layer использует pattern «component-if-present → fallback tween». НЕ настоящие `.anim` `AnimationClip` assets — миграция в OI-506b. |
+| `OI-506a` | Done | Script-tween animation layer: 6 `SaveToto*Animation` компонентов (idle pulse/float + event-driven selection/lock-open/packshot/cta-pulse) реализованы как `tween()` обёртки и привязаны к scene-nodes. `tools/attach-idle-components.mjs`, `tools/attach-phase2-animations.mjs`, `tools/attach-endcard-cta-pulse.mjs`, `tools/attach-column-move-effect.mjs`. |
+| `OI-506b` | Pending | `.anim` `AnimationClip` migration: генерация настоящих `assets/animations/save-toto/**/*.anim` assets + `.anim.meta` (Cocos editor workflow), перенос tween-кривых из script-компонентов в clips, `Animation` component на prefabs, view-methods вызывают `Animation.play()` вместо script-tween. Контракт — `ANIMATION_STRATEGY.md` §4–§5. |
 | `OI-507` | Open | Visual QA против `.plbx/reference/scene.png` после reload сцены в Cocos; сверка layout из SCENE_SETUP.md §5. |
 | `OI-508` | Open | Runtime-проверка scripted flow: spin → 3 scatter → bonus → 3 picks → locks/fire → packshot → balance count → CTA → store redirect. |
+| `OI-509` | Resolved | Блокер: бонус не появлялся после спина (3 scatter scale-анимация, далее пусто). Причина: `SaveTotoBonusView.onLoad()` вызывал `hideImmediate()` → `bonusRoot.active=false`, а `BonusRoot` стартует неактивным → `onLoad` выполняется впервые при `showBaskets()`, сразу деактивируя ноду обратно. Тот же lifecycle-баг в `SaveTotoEndCardView`. Фикс: убран авто-вызов `hideImmediate()` из `onLoad` обоих views (начальное состояние видимости — ответственность сцены). |
+| `OI-510` | Resolved | `SaveTotoSlotView.winLabel` был `null` — `WinPanel` пустой (нет Label-ребёнка). WIN-панель не показывала джекпот. Фикс: `tools/patch-win-label.mjs` добавил `WinValueLabel` (Label «10,000,000», Bodega) под `WinPanel` и привязал к `winLabel`. (OI-204: WIN — fixed visual label.) |
 
 ### 8.4. Замечание по сцене
 

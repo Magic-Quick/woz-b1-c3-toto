@@ -2,9 +2,9 @@
 document_type: "animation_strategy"
 project_id: "WOZ_B1_C3_SaveToto"
 language: "ru"
-version: "1.0.0"
-status: "draft_for_automation"
-date: "2026-06-28"
+version: "1.1.0"
+status: "script_tween_layer_done_anim_migration_pending"
+date: "2026-06-29"
 ---
 
 # Animation strategy `Save Toto`
@@ -153,7 +153,31 @@ Automation rules:
 
 Эти sprites можно использовать в `SaveTotoMoneyBurst.prefab`, `SaveTotoFloatingReward.prefab` и packshot payoff. Перед production export проверить вес и визуальную совместимость со стилем Save Toto.
 
-## 8. Definition of done
+## 9. Текущий статус реализации (OI-506a / OI-506b)
+
+**OI-506a — Done (script-tween layer).** Все клипы из §4 реализованы НЕ как `.anim` `AnimationClip` assets, а как `SaveToto*Animation` script-компоненты (`tween()` обёртки), навешанные на scene-nodes через `tools/attach-*.mjs`:
+
+| Запланированный clip | Реализация (script-tween) | Где |
+|---|---|---|
+| `spin_pulse.anim` | `SaveTotoAutoPulse` (scale loop) | SpinButton |
+| `basket_idle_pulse.anim` | `SaveTotoAutoPulse` (6×, stagger) | Basket_01..06 |
+| `toto_idle.anim` (head/tongue float) | `SaveTotoAutoFloat` (y/rot loop) | TotoHead, TotoTongue |
+| `basket_selected.anim` | `SaveTotoBasketSelectedAnimation` (scale pulse + glow fade) | Basket_01..06 |
+| `lock_open_remove_*.anim` | `SaveTotoLockOpenRemoveAnimation` (scale-up + drop + fade) | LockLeft/Center/Right |
+| `packshot_intro.anim` | `SaveTotoPackshotIntroAnimation` (bump + settle) | CageRoot |
+| `cta_pulse.anim` | `SaveTotoCtaPulseAnimation` (scale loop, explicit play) | PlayNowButton (EndCard) |
+
+View-layer pattern: `view.playX()` сначала пытается вызвать `SaveToto*Animation` компонент (`getComponent`), при отсутствии — fallback на inline `tween()`. Это позволяет сцене работать до attach компонентов.
+
+**НЕ реализовано в OI-506a (перенесено в OI-506b или ниже):**
+- `fire_level_3_to_2 / 2_to_1 / 1_to_0.anim` — fire остался static sprite; `setFireLevel()` только меняет уровень в данных, визуальной анимации нет (OI-203 открыт).
+- `money_dollar_pop / gold_coins / gold_bricks / coin_stack_pop.anim` — money sprites перенесены в `assets/art/fx/money/**`, но prefabs/clips/VFXSpawner не созданы.
+- `floating_reward_in.anim` — `FxLayer/FloatingRewardRoot` пустой.
+- `glow_pulse.anim`, `cta_intro.anim`, `logo_cta_fade.anim`, `toto_happy.anim` — отсутствуют.
+
+**OI-506b — Pending (`.anim` migration).** Перенос script-tween кривых в настоящие `AnimationClip` assets в `assets/animations/save-toto/**` + `Animation` component на prefabs + `view.playX()` вызывает `Animation.play()`. Контракты §4–§5 остаются source-of-truth.
+
+## 10. Definition of done
 
 - `.anim` assets живут в `assets/animations/save-toto/**`.
 - `.anim.meta` создаёт Cocos/editor workflow, не агент вручную.

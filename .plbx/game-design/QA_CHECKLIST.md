@@ -2,9 +2,9 @@
 document_type: "qa_checklist"
 project_id: "WOZ_B1_C3_SaveToto"
 language: "ru"
-version: "1.0.0"
-status: "draft"
-date: "2026-06-28"
+version: "1.1.0"
+status: "script_tween_layer_done_anim_migration_pending"
+date: "2026-06-29"
 ---
 
 # QA checklist `Save Toto`
@@ -122,9 +122,22 @@ date: "2026-06-28"
 
 ## 13. Проверка animation strategy
 
-- [ ] `.anim` clips находятся в `assets/animations/save-toto/**`.
+### 13a. Script-tween layer (OI-506a — Done)
+
+- [x] `SaveTotoAutoPulse` на SpinButton + Basket_01..06 (idle pulse).
+- [x] `SaveTotoAutoFloat` на TotoHead + TotoTongue (idle float).
+- [x] `SaveTotoBasketSelectedAnimation` на Basket_01..06 (event-driven selection).
+- [x] `SaveTotoLockOpenRemoveAnimation` на LockLeft/Center/Right (event-driven unlock).
+- [x] `SaveTotoPackshotIntroAnimation` на CageRoot (event-driven packshot).
+- [x] `SaveTotoCtaPulseAnimation` на PlayNowButton (EndCard, explicit play).
+- [x] View-methods используют pattern «component-if-present → fallback tween».
+- [x] `SaveTotoStateMachine` не содержит hardcoded visual tween curves.
+- [x] Money sprites лежат в `assets/art/fx/money/**` и `assets/art/ui/rewards/**`, не в `.plbx/reference/**`.
+
+### 13b. `.anim` clip migration (OI-506b — Pending)
+
+- [ ] `.anim` `AnimationClip` assets находятся в `assets/animations/save-toto/**`.
 - [ ] `.anim.meta` созданы Cocos/editor workflow, не вручную.
-- [ ] `SPIN`, basket, lock, fire, CTA и money FX animations запускаются через view methods.
-- [ ] `SaveTotoStateMachine` не содержит hardcoded visual tween curves.
-- [ ] Money sprites используются из `assets/art/fx/money/**` и `assets/art/ui/rewards/**`, не из `.plbx/reference/**`.
-- [ ] Money sprites не ломают bundle size и визуально совместимы с Save Toto style.
+- [ ] `Animation` component + clip refs на prefabs.
+- [ ] `view.playX()` вызывает `Animation.play()`, не script-tween.
+- [ ] `fire_level_*`, `money_*_pop`, `floating_reward_in`, `glow_pulse`, `cta_intro`, `logo_cta_fade`, `toto_happy` clips реализованы.

@@ -29,10 +29,13 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     @property(Node)
     public reelRoot: Node | null = null;
 
-    onLoad(): void {
-        this.hideImmediate();
-    }
-
+    // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad.
+    // BonusRoot стартует неактивным в сцене (_active=false), поэтому onLoad
+    // компонента не выполняется при старте — он выполняется в первый раз ровно
+    // когда showBaskets() ставит bonusRoot.active=true. Если в onLoad снова
+    // деактивировать ноду, bonus тут же гаснет и остаётся невидимым (tween opacity
+    // дорабатывает вхолостую). Начальное состояние видимости — ответственность
+    // сцены, а не компонента.
     public hideImmediate(): void {
         if (this.bonusRoot) this.bonusRoot.active = false;
         if (this.instructionLabel) this.instructionLabel.active = false;

@@ -24,10 +24,11 @@ export class SaveTotoEndCardView extends Component {
     @property(Button)
     public playNowButton: Button = null!;
 
-    onLoad(): void {
-        this.hideImmediate();
-    }
-
+    // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad.
+    // EndCardLayer стартует неактивным в сцене; onLoad компонента выполняется
+    // впервые при show() → если в onLoad деактивировать root, end-card гаснет
+    // сразу после активации и payout→endcard визуально пуст. Начальное состояние
+    // видимости — ответственность сцены.
     public hideImmediate(): void {
         if (this.root) this.root.active = false;
         this.stopCtaPulse();

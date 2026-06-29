@@ -6,7 +6,7 @@
  */
 
 import { _decorator, Component, Button, tween, UIOpacity } from 'cc';
-import { SaveTotoGameConfig, SaveTotoConfig, SAVE_TOTO_SCRIPTED_REEL_RESULT, SAVE_TOTO_BONUS_REWARDS } from '../config/SaveTotoGameConfig';
+import { SaveTotoGameConfig, SaveTotoConfig } from '../config/SaveTotoGameConfig';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotView } from '../views/SaveTotoSlotView';
 import { SaveTotoThreatView } from '../views/SaveTotoThreatView';
@@ -25,7 +25,6 @@ import { SaveTotoSlotEvents } from '../events/SaveTotoEvents';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 import { SaveTotoCoinAnimation } from '../animations/SaveTotoCoinAnimation';
 import { SaveTotoCoinFountain } from '../animations/SaveTotoCoinFountain';
-import { SaveTotoSymbolId } from '../types';
 
 const { ccclass, property } = _decorator;
 
@@ -94,6 +93,7 @@ export class SaveTotoStateMachine extends Component {
     private logger = createSaveTotoLogger('SaveTotoStateMachine');
     private spinNumber: number = 0;
     private readonly totalSpins: number = 4;
+    private basketClickHandlers: Array<(() => void) | null> = [];
 
     public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter): void {
         this.analytics = analytics;
@@ -107,11 +107,23 @@ export class SaveTotoStateMachine extends Component {
         // OI-511: Balance стартует с 0, наполняется по picks и простым выигрышам.
         this.slotView.setBalanceValue(0);
         this.spinNumber = 0;
+        this.picksDone = 0;
     }
 
     public startFlow(): void {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_GAME_START, payload: { projectId: this.config?.projectId } });
         this.enterIntro();
+    }
+
+    protected onDisable(): void {
+        this.cleanupInputBindings();
+        this.coinFountain?.stop();
+    }
+
+    protected onDestroy(): void {
+        this.cleanupInputBindings();
+        this.coinFountain?.stop();
+        this.unscheduleAllCallbacks();
     }
 
     public getState(): SaveTotoState {
@@ -161,8 +173,6 @@ export class SaveTotoStateMachine extends Component {
         this.logger.info(`onSpinComplete state=SpinResult spin=${this.spinNumber} scatterCount=${payload.scatterCount}`);
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_RESULT, payload: { scatters: payload.scatterCount } });
 
-        // Bonus триггерится ТОЛЬКО на последнем спине (4). На spins 1-3 — простой выигрыш,
-        // даже если случайно выпал scatter (forced spawn на spin 4 гарантирует 3 Toto).
         const isLastSpin = this.spinNumber >= this.totalSpins;
 
         try {
@@ -230,6 +240,7 @@ export class SaveTotoStateMachine extends Component {
 
         await this.bonusView.showBaskets();
         this.logger.info('bonusView.showBaskets done');
+        this.unwireBasketInputs();
         this.wireBasketInputs();
         this.enterBonusPick();
     }
@@ -239,9 +250,30 @@ export class SaveTotoStateMachine extends Component {
         baskets.forEach((basketView: SaveTotoBasketView, index: number) => {
             const btn = basketView.basketButton;
             if (btn) {
-                btn.node.on(Button.EventType.CLICK, () => this.onBasketPick(index), this);
+                const handler = () => this.onBasketPick(index);
+                this.basketClickHandlers[index] = handler;
+                btn.node.on(Button.EventType.CLICK, handler, this);
             }
         });
+    }
+
+    private unwireBasketInputs(): void {
+        const baskets = this.bonusView?.basketViews ?? [];
+        baskets.forEach((basketView: SaveTotoBasketView, index: number) => {
+            const handler = this.basketClickHandlers[index];
+            if (handler && basketView?.basketButton) {
+                basketView.basketButton.node.off(Button.EventType.CLICK, handler, this);
+            }
+            this.basketClickHandlers[index] = null;
+        });
+    }
+
+    private cleanupInputBindings(): void {
+        this.spinButtonController?.node?.off(SaveTotoEvents.EVT_SPIN_CLICK, this.onSpinClick, this);
+        this.unwireBasketInputs();
+        if (this.ctaButton) {
+            this.ctaButton.node.off(Button.EventType.CLICK, this.onCtaClick, this);
+        }
     }
 
     private enterBonusPick(): void {
@@ -294,13 +326,14 @@ export class SaveTotoStateMachine extends Component {
 
     private async enterPayout(): Promise<void> {
         this.state = SaveTotoState.Payout;
+        this.unwireBasketInputs();
         await this.bonusView.hideBaskets();
 
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
 
         await this.threatView.playPackshotTransition();
 
-        // Баланс уже фактический после picks (credit + multiplier). НЕ крутим до 10M.
+        // Баланс уже фактический после picks (credit + multiplier).
         const finalWin = this.slotView.getBalanceValue();
 
         // Скрыть лишние спрайты (slot/threat слои) — экран пустеет перед финалом.
@@ -338,7 +371,7 @@ export class SaveTotoStateMachine extends Component {
 
         await this.endCardView.show(finalWin);
 
-        // Запустить endless фонтан монет за Тото (ПОСЛЕ show — EndCardLayer активен).
+        // Запустить ограниченный по времени фонтан монет за Тото (ПОСЛЕ show — EndCardLayer активен).
         if (this.coinFountain) {
             this.coinFountain.play();
         }
@@ -346,6 +379,7 @@ export class SaveTotoStateMachine extends Component {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_CTA_SHOWN, payload: { finalWin } });
 
         if (this.ctaButton) {
+            this.ctaButton.node.off(Button.EventType.CLICK, this.onCtaClick, this);
             this.ctaButton.node.on(Button.EventType.CLICK, this.onCtaClick, this);
         }
     }
@@ -353,7 +387,12 @@ export class SaveTotoStateMachine extends Component {
     private onCtaClick(): void {
         if (this.state !== SaveTotoState.EndCard) return;
         this.analytics.send({ name: SaveTotoEvents.EVT_CTA_CLICK });
-        this.store.redirect();
-        this.state = SaveTotoState.StoreRedirect;
+        this.coinFountain?.stop();
+        const redirected = this.store.redirect();
+        if (redirected) {
+            this.state = SaveTotoState.StoreRedirect;
+        } else {
+            this.logger.warn('CTA click received, but redirect did not execute');
+        }
     }
 }

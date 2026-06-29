@@ -80,10 +80,8 @@ export interface SaveTotoConfig {
 }
 
 /**
- * Scripted расклад первого спина (SCENE_SETUP.md §6).
+ * Текущий scripted расклад bonus-trigger спина.
  * Column-major: result[columnIndex][rowIndex].
- *
- * 3 scatter-символа Тото: col1-row3, col3-row1, col4-row2.
  */
 export const SAVE_TOTO_SCRIPTED_REEL_RESULT: SaveTotoScriptedReelResult = [
     [SaveTotoSymbolId.TOTO, SaveTotoSymbolId.OZ,     SaveTotoSymbolId.BASKET],  // column 1

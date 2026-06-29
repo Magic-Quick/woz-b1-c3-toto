@@ -102,6 +102,7 @@ export class SaveTotoForcedSpawnManager extends Component {
         if (rulesForSpin.length === 0) return;
 
         const typeById = this.buildTypeByIdMap();
+        const replacements = new Map<number, IElementType[]>();
 
         for (const rule of rulesForSpin) {
             const forcedType = typeById.get(rule.elementId);
@@ -109,16 +110,18 @@ export class SaveTotoForcedSpawnManager extends Component {
 
             for (const [colIndex, rowIndex] of rule.cells) {
                 if (colIndex < 0 || colIndex >= this.columns.length) continue;
-                const columnNode = this.columns[colIndex];
-                const upcomingVisible = this.centralizedSpawner.getColumnVisibleElementTypes(colIndex);
+                const upcomingVisible = replacements.get(colIndex)
+                    || this.centralizedSpawner.getColumnVisibleElementTypes(colIndex).slice();
                 if (!upcomingVisible || upcomingVisible.length === 0) continue;
                 if (rowIndex < 0 || rowIndex >= upcomingVisible.length) continue;
-
-                const replaced = upcomingVisible.slice();
-                replaced[rowIndex] = forcedType;
-                this.centralizedSpawner.setColumnVisibleElements(colIndex, replaced, columnNode);
+                upcomingVisible[rowIndex] = forcedType;
+                replacements.set(colIndex, upcomingVisible);
             }
         }
+
+        replacements.forEach((elementTypes, colIndex) => {
+            this.centralizedSpawner.setColumnVisibleElements(colIndex, elementTypes, this.columns[colIndex]);
+        });
     }
 
     private applyLineRules(spinNumber: number): void {
@@ -129,6 +132,7 @@ export class SaveTotoForcedSpawnManager extends Component {
         if (rulesForSpin.length === 0) return;
 
         const typeById = this.buildTypeByIdMap();
+        const replacements = new Map<number, IElementType[]>();
 
         rulesForSpin.forEach(rule => {
             const positions = this.winChecker.getWinLinePositions(rule.line);
@@ -136,16 +140,19 @@ export class SaveTotoForcedSpawnManager extends Component {
             for (let i = 0; i < applyCount; i++) {
                 const [colIndex, rowIndex] = positions[i];
                 if (colIndex < 0 || colIndex >= this.columns.length) continue;
-                const columnNode = this.columns[colIndex];
-                const upcomingVisible = this.centralizedSpawner.getColumnVisibleElementTypes(colIndex);
+                const upcomingVisible = replacements.get(colIndex)
+                    || this.centralizedSpawner.getColumnVisibleElementTypes(colIndex).slice();
                 if (!upcomingVisible || upcomingVisible.length === 0) continue;
                 if (rowIndex < 0 || rowIndex >= upcomingVisible.length) continue;
                 const forcedType = typeById.get(rule.elementId);
                 if (!forcedType) continue;
-                const replaced = upcomingVisible.slice();
-                replaced[rowIndex] = forcedType;
-                this.centralizedSpawner.setColumnVisibleElements(colIndex, replaced, columnNode);
+                upcomingVisible[rowIndex] = forcedType;
+                replacements.set(colIndex, upcomingVisible);
             }
+        });
+
+        replacements.forEach((elementTypes, colIndex) => {
+            this.centralizedSpawner.setColumnVisibleElements(colIndex, elementTypes, this.columns[colIndex]);
         });
     }
 

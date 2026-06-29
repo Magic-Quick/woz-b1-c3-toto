@@ -5,7 +5,7 @@
  * под клетку — клетка уже исчезла в playPackshotTransition). Toto в happy-анимации.
  * CTA pulse на PlayNowButton.
  */
-import { _decorator, Component, Node, Label, tween, Vec3, UIOpacity, Button } from 'cc';
+import { _decorator, Component, Node, Label, tween, Vec3, UIOpacity, Button, Tween } from 'cc';
 import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
 
 const { ccclass, property } = _decorator;
@@ -27,6 +27,12 @@ export class SaveTotoEndCardView extends Component {
     // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad (см. OI-509).
     public hideImmediate(): void {
         if (this.root) this.root.active = false;
+        this.stopTotoHappy();
+        this.stopCtaPulse();
+    }
+
+    onDisable(): void {
+        this.stopTotoHappy();
         this.stopCtaPulse();
     }
 
@@ -54,6 +60,7 @@ export class SaveTotoEndCardView extends Component {
     }
 
     public hide(): void {
+        this.stopTotoHappy();
         this.stopCtaPulse();
         if (this.root) this.root.active = false;
     }
@@ -65,6 +72,7 @@ export class SaveTotoEndCardView extends Component {
     /** Happy-анимация Тото: ритмичный bounce на toto-full sprite. */
     private playTotoHappy(): void {
         if (!this.endTotoRoot) return;
+        this.stopTotoHappy();
         const base = this.endTotoRoot.scale.clone();
         // Бесконечный happy bounce loop.
         tween(this.endTotoRoot)
@@ -75,6 +83,11 @@ export class SaveTotoEndCardView extends Component {
             .union()
             .repeatForever()
             .start();
+    }
+
+    private stopTotoHappy(): void {
+        if (!this.endTotoRoot) return;
+        Tween.stopAllByTarget(this.endTotoRoot);
     }
 
     private playCtaPulse(): void {

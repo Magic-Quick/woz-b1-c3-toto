@@ -1,7 +1,7 @@
 /**
- * Save Toto — endless фонтан монет из центра за спрайтом Тото в финале.
+ * Save Toto — короткий фонтан монет из центра за спрайтом Тото в финале.
  *
- * Бесконечно спавнит монеты из центра, разлетающиеся в разные стороны по экрану.
+ * Ограниченно по времени спавнит монеты из центра, разлетающиеся в разные стороны по экрану.
  * Параболическая траектория (вверх + в сторону + гравитация вниз). Fade-out у краёв.
  *
  * Привязывается к узлу-контейнеру (EndCardLayer или FxLayer). start/stop по play()/stop().
@@ -36,8 +36,12 @@ export class SaveTotoCoinFountain extends Component {
     @property({ type: CCFloat, tooltip: 'Длительность жизни монеты (сек)' })
     public lifetime: number = 2.5;
 
+    @property({ type: CCFloat, tooltip: 'Длительность фонтана (сек)' })
+    public durationSeconds: number = 2.8;
+
     private running = false;
     private spawnTimer = 0;
+    private elapsed = 0;
 
     // НЕ вызываем this.node.active = false в onLoad — EndFountain стартует
     // неактивным в сцене. onLoad срабатывает при первой активации EndCardLayer
@@ -45,20 +49,36 @@ export class SaveTotoCoinFountain extends Component {
     // Начальное состояние видимости — ответственность сцены.
 
     public play(): void {
+        this.destroyAllCoins();
         this.node.active = true;
         this.running = true;
         this.spawnTimer = 0;
+        this.elapsed = 0;
     }
 
     public stop(): void {
         this.running = false;
+        this.spawnTimer = 0;
+        this.elapsed = 0;
         this.node.active = false;
-        // Очистить дочерние монеты.
-        this.node.removeAllChildren();
+        this.destroyAllCoins();
+    }
+
+    onDisable(): void {
+        this.stop();
+    }
+
+    onDestroy(): void {
+        this.stop();
     }
 
     update(dt: number): void {
         if (!this.running) return;
+        this.elapsed += dt;
+        if (this.elapsed >= this.durationSeconds) {
+            this.stop();
+            return;
+        }
         this.spawnTimer += dt;
         if (this.spawnTimer >= this.spawnInterval) {
             this.spawnTimer = 0;
@@ -117,5 +137,10 @@ export class SaveTotoCoinFountain extends Component {
             }
         };
         requestAnimationFrame(tick);
+    }
+
+    private destroyAllCoins(): void {
+        const children = [...this.node.children];
+        children.forEach((child) => child.destroy());
     }
 }

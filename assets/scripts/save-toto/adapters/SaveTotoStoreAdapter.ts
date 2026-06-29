@@ -8,6 +8,8 @@
  * `.meta` создаёт Cocos; не зависит от `.plbx/reference/**`.
  */
 
+import { createSaveTotoLogger } from '../common/SaveTotoLogger';
+
 declare const plbx_html_playable: any;
 
 export type SaveTotoStorePlatform = 'ios' | 'android' | 'unknown';
@@ -16,6 +18,7 @@ export class SaveTotoStoreAdapter {
     private redirected: boolean = false;
     private iosUrl?: string;
     private androidUrl?: string;
+    private logger = createSaveTotoLogger('SaveTotoStoreAdapter');
 
     constructor(opts?: { iosUrl?: string; androidUrl?: string }) {
         this.iosUrl = opts?.iosUrl;
@@ -41,15 +44,14 @@ export class SaveTotoStoreAdapter {
             return false;
         }
 
-        this.redirected = true;
-
         // Приоритет: Playbox network API.
         if (typeof plbx_html_playable !== 'undefined' && typeof plbx_html_playable.download === 'function') {
             try {
                 plbx_html_playable.download();
+                this.redirected = true;
                 return true;
             } catch (e) {
-                // fall through to URL fallback
+                this.logger.warn(`Playbox download failed: ${e}`);
             }
         }
 
@@ -58,12 +60,15 @@ export class SaveTotoStoreAdapter {
         if (url && typeof window !== 'undefined' && typeof window.open === 'function') {
             try {
                 window.open(url, '_blank');
+                this.redirected = true;
+                return true;
             } catch (e) {
-                // ignore
+                this.logger.warn(`window.open failed: ${e}`);
             }
         }
 
-        return true;
+        this.logger.warn('No redirect path available');
+        return false;
     }
 
     private resolveUrl(platform?: SaveTotoStorePlatform): string | undefined {

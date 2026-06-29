@@ -227,7 +227,6 @@ export class SaveTotoStateMachine extends Component {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
 
         await this.threatView.playPackshotTransition();
-        await this.threatView.playTotoFreed();
 
         const finalWin = this.config!.payout.finalWinValue;
         this.analytics.send({ name: SaveTotoEvents.EVT_BALANCE_COUNT_START, payload: { targetValue: finalWin } });

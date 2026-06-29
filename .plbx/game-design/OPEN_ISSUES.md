@@ -2,8 +2,8 @@
 document_type: 'open_issues'
 project_id: 'WOZ_B1_C3_SaveToto'
 language: 'ru'
-version: '1.3.0'
-status: 'animation_layer_script_tween_done_anim_migration_pending'
+version: '1.4.0'
+status: 'visual_pass_done_pending_runtime_qa'
 date: '2026-06-29'
 ---
 
@@ -124,6 +124,14 @@ date: '2026-06-29'
 | `OI-508` | Open | Runtime-проверка scripted flow: spin → 3 scatter → bonus → 3 picks → locks/fire → packshot → balance count → CTA → store redirect. |
 | `OI-509` | Resolved | Блокер: бонус не появлялся после спина (3 scatter scale-анимация, далее пусто). Причина: `SaveTotoBonusView.onLoad()` вызывал `hideImmediate()` → `bonusRoot.active=false`, а `BonusRoot` стартует неактивным → `onLoad` выполняется впервые при `showBaskets()`, сразу деактивируя ноду обратно. Тот же lifecycle-баг в `SaveTotoEndCardView`. Фикс: убран авто-вызов `hideImmediate()` из `onLoad` обоих views (начальное состояние видимости — ответственность сцены). |
 | `OI-510` | Resolved | `SaveTotoSlotView.winLabel` был `null` — `WinPanel` пустой (нет Label-ребёнка). WIN-панель не показывала джекпот. Фикс: `tools/patch-win-label.mjs` добавил `WinValueLabel` (Label «10,000,000», Bodega) под `WinPanel` и привязал к `winLabel`. (OI-204: WIN — fixed visual label.) |
+| `OI-511` | Resolved | BalanceLabel стартовал со `startingBalance` (555000). Теперь стартует пустым (0) и наполняется суммой из каждой выбранной корзины (credit rewards) через `SaveTotoSlotView.addBalanceValue()` (короткий count-up). MULTIPLIER-rewards (x3) баланс не меняют. Финальный payout считает до `finalWinValue`. |
+| `OI-512` | Resolved | Reels не убирались, а перекрывались baskets; бонус не имел overlay. Теперь reels НЕ скрываются — `SaveTotoBonusView.showBaskets()` показывает градиентный `BonusDimmer` (программно-сгенерированная vertical-gradient texture: transparent→dark→transparent), закрывающий reels до верхней границы перед огнём/панелью. Baskets — нижняя треть экрана. |
+| `OI-513` | Resolved | Scatter-highlight: 1× pulse → 3× scale blink + light-вспышка под Toto (`Light` child в Toto prefab, opacity blink 3 волны). |
+| `OI-514` | Resolved | Fire: был static на level-transition. Теперь `SaveTotoFireAnimation` — постоянный idle pulse (height + opacity flicker) + level transitions меняют только height (scale.y) и intensity (opacity), width неизменен. Level 0 = потух. |
+| `OI-515` | Resolved | Key flight: ключ (symbol-key SpriteFrame) вылетает из позиции корзины к замку, замок scale-up + swap на `open-lock.png` sprite, ключ исчезает. `SaveTotoLockView.playUnlockFrom(worldPos)`. Open-lock остаётся видимым. |
+| `OI-516` | Resolved | Packshot: клетка полностью исчезает (opacity→0, active=false), Тото остаётся непрозрачным + happy bounce. `EndCardView.show()` запускает бесконечный happy-анимацию на `EndTotoRoot` (body имеет вырезы под клетку — виден целиком). LightFx вспышка при переходе. |
+| `OI-517` | Resolved | WinPanel: добавлен `Light` child с `SaveTotoCircularLightAnimation` (бесконечное круговое вращение light.png позади панели). |
+| `OI-518` | Resolved | Basket glow усилен: двух-волна scale + долгий hold glow + масштаб glow (1.35×). Более сочная/интенсивная selection-анимация. |
 
 ### 8.4. Замечание по сцене
 

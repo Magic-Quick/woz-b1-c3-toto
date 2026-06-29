@@ -9,10 +9,13 @@
  */
 
 import { SaveTotoLockId } from '../types';
+import { Vec3 } from 'cc';
 
 export interface SaveTotoLockViewLike {
     lockId: SaveTotoLockId;
     playOpenAndRemove(): Promise<void>;
+    /** Unlock с key-flight из мировой позиции источника (корзины). */
+    playUnlockFrom?(keyFromWorldPos: Vec3): Promise<void>;
 }
 
 export class SaveTotoLockUnlockController {
@@ -44,6 +47,30 @@ export class SaveTotoLockUnlockController {
         const view = this.lockViews.get(lockId);
         if (view) {
             await view.playOpenAndRemove();
+        }
+
+        this.removedLocks.add(lockId);
+        return lockId;
+    }
+
+    /**
+     * Снять замок с key-flight из позиции корзины.
+     * @param pickIndex 0-based индекс выбора
+     * @param keyFromWorldPos мировая позиция корзины (источник ключа)
+     */
+    public async removeLockWithKey(pickIndex: number, keyFromWorldPos: Vec3): Promise<SaveTotoLockId | null> {
+        const lockId = this.lockOrder[pickIndex];
+        if (!lockId || this.removedLocks.has(lockId)) {
+            return null;
+        }
+
+        const view = this.lockViews.get(lockId);
+        if (view) {
+            if (view.playUnlockFrom) {
+                await view.playUnlockFrom(keyFromWorldPos);
+            } else {
+                await view.playOpenAndRemove();
+            }
         }
 
         this.removedLocks.add(lockId);

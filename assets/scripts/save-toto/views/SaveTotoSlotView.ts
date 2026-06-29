@@ -8,7 +8,7 @@
  * state machine слушает SPIN_COMPLETE. playSpinToResult оставлен для контракта/гибкости.
  */
 
-import { _decorator, Component, Label, Node, tween, Vec3 } from 'cc';
+import { _decorator, Component, Label, Node, tween, Vec3, UIOpacity } from 'cc';
 import { SaveTotoSlotView as ISaveTotoSlotView } from '../interfaces/SaveTotoViews';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotElement } from '../Slot/Elements/SaveTotoSlotElement';
@@ -62,18 +62,41 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
             if (!elementNode) continue;
             const slotElement = elementNode.getComponent(SaveTotoSlotElement);
             if (slotElement?.picture) {
-                promises.push(this.pulseNode(elementNode));
+                promises.push(this.blinkScatter(elementNode));
             }
         }
 
         await Promise.all(promises);
     }
 
-    private pulseNode(node: Node): Promise<void> {
+    /** Тройной мигающий pulse + light-вспышка под scatter-символом Тото. */
+    private blinkScatter(node: Node): Promise<void> {
         return new Promise<void>((resolve) => {
+            // Light-вспышка под символом: ищем дочерний "Light" узел (в Toto prefab).
+            const lightNode = node.getChildByName('Light');
+            if (lightNode) {
+                lightNode.active = true;
+                const lightOp = lightNode.getComponent(UIOpacity) || lightNode.addComponent(UIOpacity);
+                lightOp.opacity = 0;
+                tween(lightOp)
+                    .to(0.12, { opacity: 220 })
+                    .to(0.12, { opacity: 60 })
+                    .to(0.12, { opacity: 200 })
+                    .to(0.12, { opacity: 50 })
+                    .to(0.12, { opacity: 180 })
+                    .to(0.18, { opacity: 0 })
+                    .call(() => { lightNode.active = false; })
+                    .start();
+            }
+
+            // Тройной scale-pulse символа.
             tween(node)
-                .to(0.18, { scale: new Vec3(1.25, 1.25, 1.25) })
-                .to(0.18, { scale: new Vec3(1, 1, 1) })
+                .to(0.12, { scale: new Vec3(1.3, 1.3, 1.3) }, { easing: 'sineOut' })
+                .to(0.1, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
+                .to(0.12, { scale: new Vec3(1.25, 1.25, 1.25) }, { easing: 'sineOut' })
+                .to(0.1, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
+                .to(0.12, { scale: new Vec3(1.2, 1.2, 1.2) }, { easing: 'sineOut' })
+                .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: 'sineIn' })
                 .call(() => resolve())
                 .start();
         });
@@ -85,8 +108,31 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
 
     public setBalanceValue(value: number): void {
         if (this.balanceLabel) {
-            this.balanceLabel.string = `${Math.round(value)}`;
+            this.balanceLabel.string = value <= 0 ? '' : `${Math.round(value)}`;
         }
+    }
+
+    /** Плавно прибавить сумму к balance (короткий count-up для вау-эффекта pick'а). */
+    public async addBalanceValue(delta: number): Promise<void> {
+        if (!this.balanceLabel || delta <= 0) return;
+        const from = parseFloat(this.balanceLabel.string) || 0;
+        const to = from + delta;
+        const durationSec = 0.6;
+        const start = Date.now();
+        const dur = durationSec * 1000;
+        return new Promise<void>((resolve) => {
+            const tick = () => {
+                const t = Math.min((Date.now() - start) / dur, 1);
+                const v = Math.round(from + (to - from) * t);
+                this.balanceLabel.string = `${v}`;
+                if (t < 1) {
+                    requestAnimationFrame(tick);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(tick);
+        });
     }
 
     public countBalanceTo(value: number, durationSeconds: number): Promise<void> {

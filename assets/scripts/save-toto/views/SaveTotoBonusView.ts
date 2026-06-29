@@ -1,13 +1,12 @@
 /**
  * Save Toto — view bonus-слоя.
  *
- * PRESENTATION FIX 2026-06-29:
- * - explicit `reelRoot` ref
- * - при showBaskets() reel скрывается, чтобы бонусная сетка была очевидна визуально
- * - при hideBaskets() reel остаётся скрытым (дальше идёт payout/endcard)
+ * OI-512: reels НЕ скрываются, а закрываются градиентным оверлэем (BonusDimmer),
+ * который заканчивается на верхней границе — перед огнём и панелью выигрыша.
+ * Градиент генерируется программно (вертикальный: прозрачный → тёмный → прозрачный),
+ * чтобы создать плавное затемнение reels без резких краёв.
  */
-
-import { _decorator, Component, Node, tween, Vec3, UIOpacity } from 'cc';
+import { _decorator, Component, Node, tween, Vec3, UIOpacity, Sprite, SpriteFrame, Texture2D, ImageAsset } from 'cc';
 import { SaveTotoBonusView as ISaveTotoBonusView } from '../interfaces/SaveTotoViews';
 import { SaveTotoBasketView } from './SaveTotoBasketView';
 import { SaveTotoBonusReward } from '../types';
@@ -25,26 +24,66 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     @property(Node)
     public instructionLabel: Node = null!;
 
-    /** Reel скрывается в момент входа в bonus, чтобы сетка корзин была очевидна. */
+    /** Оверлэй с градиентом поверх reels. Если есть — reels не скрываются. */
     @property(Node)
-    public reelRoot: Node | null = null;
+    public dimmerNode: Node | null = null;
 
-    // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad.
-    // BonusRoot стартует неактивным в сцене (_active=false), поэтому onLoad
-    // компонента не выполняется при старте — он выполняется в первый раз ровно
-    // когда showBaskets() ставит bonusRoot.active=true. Если в onLoad снова
-    // деактивировать ноду, bonus тут же гаснет и остаётся невидимым (tween opacity
-    // дорабатывает вхолостую). Начальное состояние видимости — ответственность
-    // сцены, а не компонента.
+    // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad (см. OI-509).
     public hideImmediate(): void {
         if (this.bonusRoot) this.bonusRoot.active = false;
         if (this.instructionLabel) this.instructionLabel.active = false;
+        if (this.dimmerNode) this.dimmerNode.active = false;
+    }
+
+    onLoad(): void {
+        this.buildGradientTexture();
+    }
+
+    /** Программно создать вертикальный градиент для dimmer (transparent→dark→transparent). */
+    private buildGradientTexture(): void {
+        if (!this.dimmerNode) return;
+        const W = 16;
+        const H = 64;
+        const buf = new Uint8Array(W * H * 4);
+        for (let y = 0; y < H; y++) {
+            // Vignette: alpha 0 на краях, ~210 в середине.
+            const t = y / (H - 1); // 0..1
+            const v = Math.sin(t * Math.PI); // 0..1..0
+            const alpha = Math.round(210 * v);
+            for (let x = 0; x < W; x++) {
+                const i = (y * W + x) * 4;
+                buf[i] = 0;     // R
+                buf[i + 1] = 0; // G
+                buf[i + 2] = 0; // B
+                buf[i + 3] = alpha;
+            }
+        }
+        const img = new ImageAsset();
+        const src = { width: W, height: H, format: Texture2D.PixelFormat.RGBA8888, _data: buf };
+        img.reset(src as any);
+        const tex = new Texture2D();
+        tex.image = img;
+        const sf = new SpriteFrame();
+        sf.texture = tex;
+
+        const sprite = this.dimmerNode.getComponent(Sprite) || this.dimmerNode.addComponent(Sprite);
+        sprite.spriteFrame = sf;
+        sprite.type = Sprite.Type.SIMPLE;
+        // Stretch во весь dimmer.
+        const op = this.dimmerNode.getComponent(UIOpacity) || this.dimmerNode.addComponent(UIOpacity);
+        op.opacity = 0;
+        this.dimmerNode.active = false;
     }
 
     public async showBaskets(): Promise<void> {
-        if (this.reelRoot) {
-            this.reelRoot.active = false;
+        // OI-512: НЕ убираем reels — закрываем градиентным оверлэем.
+        if (this.dimmerNode) {
+            this.dimmerNode.active = true;
+            const dop = this.dimmerNode.getComponent(UIOpacity) || this.dimmerNode.addComponent(UIOpacity);
+            dop.opacity = 0;
+            tween(dop).to(0.3, { opacity: 255 }).start();
         }
+
         if (this.bonusRoot) this.bonusRoot.active = true;
         if (this.instructionLabel) this.instructionLabel.active = true;
 
@@ -81,6 +120,12 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
                 .to(0.25, { opacity: 0 })
                 .call(() => {
                     this.bonusRoot.active = false;
+                    // Убираем dimmer (reels уже не нужны — дальше packshot).
+                    if (this.dimmerNode) {
+                        const dop = this.dimmerNode.getComponent(UIOpacity);
+                        if (dop) tween(dop).to(0.25, { opacity: 0 }).call(() => { this.dimmerNode.active = false; }).start();
+                        else this.dimmerNode.active = false;
+                    }
                     resolve();
                 })
                 .start();
@@ -113,3 +158,4 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
         // MVP: оставшиеся корзины остаются закрытыми (OI-006).
     }
 }
+

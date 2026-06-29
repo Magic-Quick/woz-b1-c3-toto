@@ -51,8 +51,10 @@ export class SaveTotoBasketSelectedAnimation extends Component {
         const targetScale = this.originalScale.clone().multiplyScalar(1 + this.peakScaleMultiplier);
 
         return new Promise<void>((resolve) => {
+            // Более сочная/интенсивная selection: двух-волна scale + долгий hold glow.
             tween(this.node)
-                .to(this.scaleUpDurationSec, { scale: targetScale }, { easing: 'sineOut' })
+                .to(this.scaleUpDurationSec, { scale: targetScale }, { easing: 'backOut' })
+                .to(this.scaleDownDurationSec * 0.6, { scale: this.originalScale.clone().multiplyScalar(1.04) }, { easing: 'sineInOut' })
                 .to(this.scaleDownDurationSec, { scale: this.originalScale }, { easing: 'sineInOut' })
                 .call(() => resolve())
                 .start();
@@ -60,11 +62,19 @@ export class SaveTotoBasketSelectedAnimation extends Component {
             if (this.glow) {
                 const op = this.glow.getComponent(UIOpacity) || this.glow.addComponent(UIOpacity);
                 Tween.stopAllByTarget(op);
+                Tween.stopAllByTarget(this.glow);
                 op.opacity = 0;
+                // Glow: яркий flash + долгий hold + пульсация масштаба glow.
                 tween(op)
                     .to(this.glowInDurationSec, { opacity: 255 })
-                    .delay(this.glowHoldDurationSec)
+                    .to(this.glowHoldDurationSec, { opacity: 230 })
                     .to(this.glowOutDurationSec, { opacity: 0 })
+                    .start();
+                const glowScaleUp = this.glow.scale.clone().multiplyScalar(1.35);
+                tween(this.glow)
+                    .to(this.glowInDurationSec, { scale: glowScaleUp }, { easing: 'sineOut' })
+                    .to(this.glowHoldDurationSec, { scale: glowScaleUp.clone().multiplyScalar(0.92) })
+                    .to(this.glowOutDurationSec, { scale: this.glow.scale.clone() })
                     .start();
             }
         });

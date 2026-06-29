@@ -1,15 +1,17 @@
 /**
  * Save Toto — view threat-слоя (implements SaveTotoThreatView).
  *
- * Packshot transition по возможности делегируется компоненту
- * SaveTotoPackshotIntroAnimation на CageRoot; при его отсутствии используется tween fallback.
+ * Огонь: делегирует SaveTotoFireAnimation (idle pulse + level-driven height/opacity).
+ * Packshot transition: клетка полностью исчезает (opacity 0), Тото остаётся непрозрачным
+ * и переходит в happy-анимацию. Packshot overlay добавляется отдельно (EndCardLayer).
  */
-
 import { _decorator, Component, Node, tween, Vec3, UIOpacity } from 'cc';
 import { SaveTotoThreatView as ISaveTotoThreatView } from '../interfaces/SaveTotoViews';
 import { SaveTotoFireLevel } from '../types';
 import { SaveTotoLockView } from './SaveTotoLockView';
 import { SaveTotoPackshotIntroAnimation } from '../animations/SaveTotoPackshotIntroAnimation';
+import { SaveTotoFireAnimation } from '../animations/SaveTotoFireAnimation';
+import { SaveTotoAutoFloat } from '../animations/SaveTotoAutoFloat';
 
 const { ccclass, property } = _decorator;
 
@@ -31,26 +33,40 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     public lightFxNode: Node = null!;
 
     private currentFireLevel: SaveTotoFireLevel = 3;
+    private fireAnim: SaveTotoFireAnimation | null = null;
 
     onLoad(): void {
         if (this.lightFxNode) this.lightFxNode.active = false;
-        this.setFireLevel(3);
+        this.fireAnim = this.fireNode?.getComponent(SaveTotoFireAnimation) || null;
+        if (this.fireAnim) {
+            this.fireAnim.setLevel(3);
+        } else {
+            this.setFireLevelFallback(3);
+        }
     }
 
     public setFireLevel(level: SaveTotoFireLevel): void {
         this.currentFireLevel = level;
+        if (this.fireAnim) {
+            this.fireAnim.setLevel(level);
+            return;
+        }
+        this.setFireLevelFallback(level);
+    }
+
+    /** Legacy fallback если SaveTotoFireAnimation не привязан. */
+    private setFireLevelFallback(level: SaveTotoFireLevel): void {
         if (!this.fireNode) return;
-
         const t = level / 3;
-        const scale = 0.4 + t * 0.6;
-        const opacityVal = level === 0 ? 0 : 80 + t * 175;
-
+        const scaleX = 1.0;
+        const scaleY = 0.4 + t * 0.6;
+        const opacityVal = level === 0 ? 0 : 90 + t * 165;
         const op = this.fireNode.getComponent(UIOpacity) || this.fireNode.addComponent(UIOpacity);
         tween(this.fireNode)
-            .to(0.35, { scale: new Vec3(scale, scale, scale) }, { easing: 'sineInOut' })
+            .to(0.4, { scale: new Vec3(scaleX, scaleY, 1) }, { easing: 'sineInOut' })
             .start();
         tween(op)
-            .to(0.35, { opacity: opacityVal }, { easing: 'sineInOut' })
+            .to(0.4, { opacity: opacityVal }, { easing: 'sineInOut' })
             .start();
     }
 
@@ -65,41 +81,53 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     }
 
     public async playPackshotTransition(): Promise<void> {
+        // Огонь гаснет.
+        this.setFireLevel(0);
+
+        // Packshot-intro bump на cage (если есть компонент).
         const packshotAnimation = this.cageRoot?.getComponent(SaveTotoPackshotIntroAnimation);
         if (packshotAnimation) {
             await packshotAnimation.play();
-            return;
         }
 
-        return new Promise<void>((resolve) => {
-            if (this.lightFxNode) {
-                this.lightFxNode.active = true;
-                const op = this.lightFxNode.getComponent(UIOpacity) || this.lightFxNode.addComponent(UIOpacity);
-                op.opacity = 0;
-                tween(op).to(0.4, { opacity: 255 }).start();
-            }
-            if (this.cageRoot) {
-                const op = this.cageRoot.getComponent(UIOpacity) || this.cageRoot.addComponent(UIOpacity);
-                tween(this.cageRoot)
-                    .to(0.2, { scale: new Vec3(1.05, 1.05, 1.05) })
+        // Клетка полностью исчезает; Тото остаётся непрозрачным.
+        if (this.cageRoot) {
+            const cageOp = this.cageRoot.getComponent(UIOpacity) || this.cageRoot.addComponent(UIOpacity);
+            await new Promise<void>((resolve) => {
+                tween(cageOp)
+                    .to(0.5, { opacity: 0 }, { easing: 'sineIn' })
                     .call(() => {
-                        tween(op).to(0.4, { opacity: 110 }).start();
+                        this.cageRoot.active = false;
+                        resolve();
                     })
-                    .to(0.4, { scale: new Vec3(0.92, 0.92, 0.92) })
-                    .call(() => resolve())
                     .start();
-            } else {
-                resolve();
-            }
-        });
+            });
+        }
+
+        // LightFx вспышка для вау-эффекта перехода.
+        if (this.lightFxNode) {
+            this.lightFxNode.active = true;
+            const lop = this.lightFxNode.getComponent(UIOpacity) || this.lightFxNode.addComponent(UIOpacity);
+            lop.opacity = 0;
+            await new Promise<void>((resolve) => {
+                tween(lop)
+                    .to(0.25, { opacity: 220 })
+                    .to(0.35, { opacity: 0 })
+                    .call(() => { this.lightFxNode.active = false; resolve(); })
+                    .start();
+            });
+        }
     }
 
     public async playTotoFreed(): Promise<void> {
         if (!this.totoRoot) return;
+        // Усиленный happy bounce: Тото появляется/подпрыгивает.
         return new Promise<void>((resolve) => {
             tween(this.totoRoot)
-                .to(0.25, { scale: new Vec3(1.2, 1.2, 1.2) }, { easing: 'backOut' })
-                .to(0.25, { scale: new Vec3(1, 1, 1) })
+                .to(0.18, { scale: new Vec3(1.18, 1.18, 1.18) }, { easing: 'backOut' })
+                .to(0.16, { scale: new Vec3(0.94, 0.94, 1) }, { easing: 'sineInOut' })
+                .to(0.2, { scale: new Vec3(1.08, 1.08, 1.08) }, { easing: 'sineOut' })
+                .to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'sineInOut' })
                 .call(() => resolve())
                 .start();
         });

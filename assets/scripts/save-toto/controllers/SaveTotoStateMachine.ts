@@ -93,7 +93,8 @@ export class SaveTotoStateMachine extends Component {
             this.lockUnlockController.registerLockView(lockView.lockId, lockView);
         }
         this.spinsController.setSpins(1);
-        this.slotView.setBalanceValue(this.config.payout.startingBalance);
+        // OI-511: Balance стартует пустым, наполняется по picks. Финальный payout считает до finalWinValue.
+        this.slotView.setBalanceValue(0);
     }
 
     public startFlow(): void {
@@ -196,7 +197,14 @@ export class SaveTotoStateMachine extends Component {
         await this.bonusView.openBasket(basketIndex, reward);
         this.analytics.send({ name: SaveTotoEvents.EVT_REWARD_REVEALED, payload: { pickIndex, rewardId: reward.rewardId } });
 
-        const removedLock = await this.lockUnlockController.removeLockByPickIndex(pickIndex);
+        // OI-511: balance наполняется суммой из корзины (credit rewards).
+        if (reward.kind === 0 /* SaveTotoRewardKind.CREDIT */) {
+            await this.slotView.addBalanceValue(reward.value);
+        }
+
+        // Key flight из позиции корзины к замку + open-lock swap.
+        const basketAnchor = this.bonusView.getBasketAnchor(basketIndex);
+        const removedLock = await this.lockUnlockController.removeLockWithKey(pickIndex, basketAnchor.worldPosition);
         this.analytics.send({ name: SaveTotoEvents.EVT_LOCK_REMOVED, payload: { lockIndex: pickIndex, lockId: removedLock, locksRemaining: this.lockUnlockController.getRemainingLocks() } });
 
         const newFireLevel = Math.max(0, 3 - (pickIndex + 1));

@@ -3,12 +3,13 @@
  *
  * Решает OI-203 v2: постоянная пульсация (яркость/контраст) + уровни снижаются
  * через высоту (scale.y) и интенсивность (opacity), ширина не меняется.
- * Если в `assets/resources/save-toto/fire/` есть sprite-кадры, проигрывает их как
- * лёгкую ping-pong frame animation поверх существующей scale/opacity логики.
+ * Для web runtime использует готовый animated WEBP через DOM overlay,
+ * чтобы не раздувать bundle распаковкой в PNG sequence.
+ * Unlock-последовательность использует 3 явные ступени затухания: 3 → 2 → 1 → 0.
  *
  * Привязывается к FireSprite node. ThreatView.setFireLevel() вызывает setLevel().
  */
-import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCInteger, CCString, Sprite, SpriteFrame, resources } from 'cc';
+import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources, ImageAsset, UITransform, game, sys, director } from 'cc';
 
 const { ccclass, property } = _decorator;
 
@@ -19,6 +20,15 @@ export class SaveTotoFireAnimation extends Component {
 
     @property({ type: CCFloat, tooltip: 'Макс высота огня на уровне 3 (scale.y)' })
     public maxScaleY: number = 1;
+
+    @property({ type: CCFloat, tooltip: 'Высота огня на уровне 2' })
+    public level2ScaleY: number = 0.74;
+
+    @property({ type: CCFloat, tooltip: 'Высота огня на уровне 1' })
+    public level1ScaleY: number = 0.48;
+
+    @property({ type: CCFloat, tooltip: 'Остаточная высота огня на уровне 0 перед полным затуханием' })
+    public level0ScaleY: number = 0.2;
 
     @property({ type: CCFloat, tooltip: 'Амплитуда idle-пульсации высоты' })
     public idleAmplitude: number = 0.06;
@@ -32,30 +42,62 @@ export class SaveTotoFireAnimation extends Component {
     @property({ type: CCFloat, tooltip: 'Макс opacity на уровне 3' })
     public maxOpacity: number = 255;
 
-    @property({ type: CCFloat, tooltip: 'Мин opacity на уровне 1 (уровень 0 = потух, opacity 0)' })
-    public minOpacity: number = 90;
+    @property({ type: CCFloat, tooltip: 'Opacity на уровне 2' })
+    public level2Opacity: number = 190;
 
-    @property({ type: CCString, tooltip: 'Resources-папка с fire frames' })
-    public framesResourceDir: string = 'save-toto/fire';
+    @property({ type: CCFloat, tooltip: 'Opacity на уровне 1' })
+    public level1Opacity: number = 105;
 
-    @property({ type: CCFloat, tooltip: 'FPS sprite-анимации огня' })
-    public frameFps: number = 12;
-
-    @property({ tooltip: 'Использовать ping-pong проигрывание кадров' })
-    public pingPongFrames: boolean = true;
+    @property({ type: CCString, tooltip: 'Resources path до animated WEBP без расширения' })
+    public animatedWebpResourcePath: string = 'save-toto/fire/fire';
 
     private opacity: UIOpacity | null = null;
     private idleTween: any = null;
     private level = 3;
     private sprite: Sprite | null = null;
-    private frames: SpriteFrame[] = [];
-    private frameTimer = 0;
-    private frameIndex = 0;
-    private frameDirection = 1;
+    private fallbackSpriteFrame: SpriteFrame | null = null;
+    private fireUiTransform: UITransform | null = null;
+    private canvasTransform: UITransform | null = null;
+    private overlayImg: HTMLImageElement | null = null;
+    private overlayContainer: HTMLElement | null = null;
+    private overlayReady = false;
+
+    private getLevelProfile(level: 0 | 1 | 2 | 3): { scaleY: number; opacity: number; pulseAmplitude: number } {
+        switch (level) {
+            case 2:
+                return {
+                    scaleY: this.level2ScaleY,
+                    opacity: this.level2Opacity,
+                    pulseAmplitude: this.idleAmplitude * 0.72,
+                };
+            case 1:
+                return {
+                    scaleY: this.level1ScaleY,
+                    opacity: this.level1Opacity,
+                    pulseAmplitude: this.idleAmplitude * 0.45,
+                };
+            case 0:
+                return {
+                    scaleY: this.level0ScaleY,
+                    opacity: 0,
+                    pulseAmplitude: 0,
+                };
+            case 3:
+            default:
+                return {
+                    scaleY: this.maxScaleY,
+                    opacity: this.maxOpacity,
+                    pulseAmplitude: this.idleAmplitude,
+                };
+        }
+    }
 
     onLoad(): void {
         this.opacity = this.node.getComponent(UIOpacity) || this.node.addComponent(UIOpacity);
         this.sprite = this.node.getComponent(Sprite) || null;
+        this.fireUiTransform = this.node.getComponent(UITransform) || null;
+        this.canvasTransform = director.getScene()?.getChildByName('Canvas')?.getComponent(UITransform) || null;
+        this.fallbackSpriteFrame = this.sprite?.spriteFrame ?? null;
         // FIX: anchor снизу — чтобы scaleY опускал только верхнюю часть, низ неподвижен.
         const ut = this.node.getComponent('cc.UITransform') as any;
         if (ut) {
@@ -67,27 +109,39 @@ export class SaveTotoFireAnimation extends Component {
         }
         this.node.setScale(new Vec3(this.baseScaleX, this.maxScaleY, 1));
         this.opacity.opacity = this.maxOpacity;
-        this.loadFireFrames();
+        if (this.sprite && this.shouldUseAnimatedWebpOverlay()) {
+            this.sprite.spriteFrame = null;
+        }
+        this.loadAnimatedWebpOverlay();
         this.startIdlePulse();
     }
 
     update(dt: number): void {
-        if (!this.sprite || this.frames.length <= 1 || this.level <= 0) return;
-        const frameDuration = 1 / Math.max(this.frameFps, 1);
-        this.frameTimer += dt;
-        while (this.frameTimer >= frameDuration) {
-            this.frameTimer -= frameDuration;
-            this.advanceFrame();
-        }
+        void dt;
+        this.syncOverlayToNode();
+    }
+
+    onDisable(): void {
+        this.setOverlayVisible(false);
+    }
+
+    onEnable(): void {
+        this.setOverlayVisible(true);
+    }
+
+    onDestroy(): void {
+        this.destroyOverlayElement();
     }
 
     /** Постоянная пульсация: дрожание высоты + мерцание opacity (вау-эффект). */
     private startIdlePulse(): void {
         this.stopIdlePulse();
-        const baseY = this.levelTargetScaleY();
-        const up = baseY * (1 + this.idleAmplitude);
-        const down = baseY * (1 - this.idleAmplitude * 0.5);
-        const baseOpacity = this.levelTargetOpacity();
+        const profile = this.getLevelProfile(this.level as 0 | 1 | 2 | 3);
+        const baseY = profile.scaleY;
+        const pulseAmplitude = profile.pulseAmplitude;
+        const up = baseY * (1 + pulseAmplitude);
+        const down = baseY * (1 - pulseAmplitude * 0.55);
+        const baseOpacity = profile.opacity;
 
         this.idleTween = tween(this.node)
             .to(this.idleHalfDurationSec, { scale: new Vec3(this.baseScaleX, up, 1) }, { easing: 'sineInOut' })
@@ -115,66 +169,113 @@ export class SaveTotoFireAnimation extends Component {
         if (this.opacity) Tween.stopAllByTarget(this.opacity);
     }
 
-    private loadFireFrames(): void {
-        if (!this.sprite || !this.framesResourceDir) return;
+    private shouldUseAnimatedWebpOverlay(): boolean {
+        return !!this.animatedWebpResourcePath && sys.isBrowser && typeof document !== 'undefined';
+    }
 
-        resources.loadDir(this.framesResourceDir, SpriteFrame, (err, assets) => {
-            if (err || !assets || assets.length === 0 || !this.node?.isValid || !this.sprite) {
+    private loadAnimatedWebpOverlay(): void {
+        if (!this.shouldUseAnimatedWebpOverlay()) return;
+
+        resources.load(this.animatedWebpResourcePath, ImageAsset, (err, asset) => {
+            if (err || !asset || !this.node?.isValid) {
+                this.restoreFallbackSprite();
                 return;
             }
 
-            this.frames = assets
-                .slice()
-                .sort((a, b) => this.extractFrameOrder(a.name) - this.extractFrameOrder(b.name));
+            const container = game.container as HTMLElement | null;
+            if (!container || !game.canvas) {
+                this.restoreFallbackSprite();
+                return;
+            }
 
-            this.frameIndex = 0;
-            this.frameDirection = 1;
-            this.frameTimer = 0;
-            this.applyCurrentFrame();
+            if (getComputedStyle(container).position === 'static') {
+                container.style.position = 'relative';
+            }
+
+            const img = document.createElement('img');
+            img.src = asset.nativeUrl;
+            img.alt = 'fire';
+            img.draggable = false;
+            img.style.position = 'absolute';
+            img.style.pointerEvents = 'none';
+            img.style.userSelect = 'none';
+            img.style.transformOrigin = 'center bottom';
+            img.style.objectFit = 'fill';
+            img.style.zIndex = '4';
+            img.style.display = 'none';
+
+            container.appendChild(img);
+            this.overlayContainer = container;
+            this.overlayImg = img;
+            this.overlayReady = true;
+            this.syncOverlayToNode();
         });
     }
 
-    private extractFrameOrder(name: string): number {
-        const match = name.match(/(\d+)(?!.*\d)/);
-        return match ? parseInt(match[1], 10) : 0;
+    private restoreFallbackSprite(): void {
+        if (this.sprite && this.fallbackSpriteFrame) {
+            this.sprite.spriteFrame = this.fallbackSpriteFrame;
+        }
     }
 
-    private advanceFrame(): void {
-        if (this.frames.length <= 1) return;
-
-        if (!this.pingPongFrames) {
-            this.frameIndex = (this.frameIndex + 1) % this.frames.length;
-            this.applyCurrentFrame();
+    private syncOverlayToNode(): void {
+        if (!this.overlayReady || !this.overlayImg || !this.overlayContainer || !game.canvas || !this.fireUiTransform || !this.canvasTransform) {
             return;
         }
 
-        let nextIndex = this.frameIndex + this.frameDirection;
-        if (nextIndex >= this.frames.length) {
-            this.frameDirection = -1;
-            nextIndex = Math.max(this.frames.length - 2, 0);
-        } else if (nextIndex < 0) {
-            this.frameDirection = 1;
-            nextIndex = Math.min(1, this.frames.length - 1);
+        if (!this.node.activeInHierarchy || this.level <= 0) {
+            this.overlayImg.style.display = 'none';
+            return;
         }
 
-        this.frameIndex = nextIndex;
-        this.applyCurrentFrame();
+        const width = this.fireUiTransform.contentSize.width;
+        const height = this.fireUiTransform.contentSize.height;
+        const minWorld = this.fireUiTransform.convertToWorldSpaceAR(new Vec3(-width * this.fireUiTransform.anchorX, -height * this.fireUiTransform.anchorY, 0));
+        const maxWorld = this.fireUiTransform.convertToWorldSpaceAR(new Vec3(width * (1 - this.fireUiTransform.anchorX), height * (1 - this.fireUiTransform.anchorY), 0));
+
+        const minLocal = this.canvasTransform.convertToNodeSpaceAR(minWorld);
+        const maxLocal = this.canvasTransform.convertToNodeSpaceAR(maxWorld);
+        const canvasSize = this.canvasTransform.contentSize;
+        const canvasRect = game.canvas.getBoundingClientRect();
+        const containerRect = this.overlayContainer.getBoundingClientRect();
+
+        const left = ((minLocal.x + canvasSize.width * 0.5) / canvasSize.width) * canvasRect.width + (canvasRect.left - containerRect.left);
+        const right = ((maxLocal.x + canvasSize.width * 0.5) / canvasSize.width) * canvasRect.width + (canvasRect.left - containerRect.left);
+        const top = ((canvasSize.height * 0.5 - maxLocal.y) / canvasSize.height) * canvasRect.height + (canvasRect.top - containerRect.top);
+        const bottom = ((canvasSize.height * 0.5 - minLocal.y) / canvasSize.height) * canvasRect.height + (canvasRect.top - containerRect.top);
+
+        this.overlayImg.style.left = `${left}px`;
+        this.overlayImg.style.top = `${top}px`;
+        this.overlayImg.style.width = `${Math.max(0, right - left)}px`;
+        this.overlayImg.style.height = `${Math.max(0, bottom - top)}px`;
+        this.overlayImg.style.opacity = `${(this.opacity?.opacity ?? 255) / 255}`;
+        this.overlayImg.style.display = 'block';
     }
 
-    private applyCurrentFrame(): void {
-        if (!this.sprite || this.frames.length === 0) return;
-        this.sprite.spriteFrame = this.frames[this.frameIndex] || this.frames[0];
+    private setOverlayVisible(visible: boolean): void {
+        if (!this.overlayImg) return;
+        if (!visible || this.level <= 0 || !this.node.activeInHierarchy) {
+            this.overlayImg.style.display = 'none';
+            return;
+        }
+        this.syncOverlayToNode();
+    }
+
+    private destroyOverlayElement(): void {
+        if (this.overlayImg?.parentElement) {
+            this.overlayImg.parentElement.removeChild(this.overlayImg);
+        }
+        this.overlayImg = null;
+        this.overlayContainer = null;
+        this.overlayReady = false;
     }
 
     private levelTargetScaleY(): number {
-        const t = this.level / 3;
-        return 0.35 + t * (this.maxScaleY - 0.35);
+        return this.getLevelProfile(this.level as 0 | 1 | 2 | 3).scaleY;
     }
 
     private levelTargetOpacity(): number {
-        if (this.level <= 0) return 0;
-        const t = this.level / 3;
-        return this.minOpacity + t * (this.maxOpacity - this.minOpacity);
+        return this.getLevelProfile(this.level as 0 | 1 | 2 | 3).opacity;
     }
 
     /** Сменить уровень огня (3=макс, 0=потух). Width не меняется — только height + opacity. */

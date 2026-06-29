@@ -6,7 +6,7 @@
  * Градиент генерируется программно (вертикальный: прозрачный → тёмный → прозрачный),
  * чтобы создать плавное затемнение reels без резких краёв.
  */
-import { _decorator, Component, Node, tween, Vec3, UIOpacity, Sprite, Graphics, Color } from 'cc';
+import { _decorator, Component, Node, tween, Vec3, UIOpacity, Sprite, Graphics, Color, CCFloat } from 'cc';
 import { SaveTotoBonusView as ISaveTotoBonusView } from '../interfaces/SaveTotoViews';
 import { SaveTotoBasketView } from './SaveTotoBasketView';
 import { SaveTotoBonusReward } from '../types';
@@ -28,6 +28,19 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     @property(Node)
     public dimmerNode: Node | null = null;
 
+    // === Точки настройки dimmer (тюнинг в превью) ===
+    @property({ type: CCFloat, tooltip: 'Ширина dimmer (покрытие reels по X)' })
+    public dimmerWidth: number = 960;
+
+    @property({ type: CCFloat, tooltip: 'Высота dimmer (покрытие reels по Y)' })
+    public dimmerHeight: number = 480;
+
+    @property({ type: CCFloat, tooltip: 'Позиция dimmer по Y (центр, относительно BonusRoot). Нижний край = posY - height/2' })
+    public dimmerPosY: number = 130;
+
+    @property({ type: CCFloat, tooltip: 'Макс. alpha градиента в центре (0-255)' })
+    public dimmerMaxAlpha: number = 210;
+
     // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad (см. OI-509).
     public hideImmediate(): void {
         if (this.bonusRoot) this.bonusRoot.active = false;
@@ -46,24 +59,24 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     private buildGradientDimmer(): void {
         if (this.gradientBuilt || !this.dimmerNode) return;
 
-        // Гарантируем UITransform с размером, покрывающим reels.
+        // Гарантируем UITransform с настраиваемым размером.
         let ut = this.dimmerNode.getComponent('cc.UITransform') as any;
         if (!ut) ut = this.dimmerNode.addComponent('cc.UITransform' as any);
-        ut.setContentSize(960, 480);
-        // Позиция: центр dimmer над reels (ReelRoot y≈-20, BonusRoot y≈-150 → local y≈130).
-        this.dimmerNode.setPosition(0, 130, 0);
+        ut.setContentSize(this.dimmerWidth, this.dimmerHeight);
+        // Позиция: центр dimmer (нижний край = posY - height/2).
+        this.dimmerNode.setPosition(0, this.dimmerPosY, 0);
 
-        // Рисуем вертикальный градиент полосками: alpha 0 сверху → ~210 в середине → 0 снизу.
+        // Рисуем вертикальный градиент полосками: alpha 0 сверху → max в середине → 0 снизу.
         const g = this.dimmerNode.getComponent(Graphics) || this.dimmerNode.addComponent(Graphics);
         g.clear();
-        const W = 960;
-        const H = 480;
+        const W = this.dimmerWidth;
+        const H = this.dimmerHeight;
         const strips = 24;
         const stripH = H / strips;
         for (let i = 0; i < strips; i++) {
             const t = (i + 0.5) / strips;            // 0..1 сверху вниз
             const v = Math.sin(t * Math.PI);          // 0..1..0
-            const alpha = Math.round(210 * v);
+            const alpha = Math.round(this.dimmerMaxAlpha * v);
             g.fillColor = new Color(0, 0, 0, alpha);
             const y = H / 2 - (i + 1) * stripH;       // сверху вниз
             g.rect(-W / 2, y, W, stripH);

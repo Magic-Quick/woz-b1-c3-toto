@@ -31,6 +31,21 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
     @property(Node)
     public keyFlightRoot: Node | null = null;
 
+    /** Зеркалить спрайт по X (для правого замка, чтобы open-lock смотрел логично). */
+    @property
+    public mirror: boolean = false;
+
+    private originalScale: Vec3 = new Vec3(1, 1, 1);
+
+    onLoad(): void {
+        this.originalScale = this.node.scale.clone();
+        // Применяем mirror к базовому scale (x = -|x|).
+        if (this.mirror) {
+            this.originalScale.x = -Math.abs(this.originalScale.x);
+            this.node.setScale(this.originalScale);
+        }
+    }
+
     public async playOpenAndRemove(): Promise<void> {
         const node = this.node;
         if (!node || !node.isValid) return;
@@ -51,13 +66,15 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
         }
 
         // 2. Scale-up замка (вздрогнул) + swap на open-lock, open-lock остаётся.
+        // Preserve sign of x для mirror.
+        const sx = this.originalScale.x;
         await new Promise<void>((resolve) => {
             tween(node)
-                .to(0.12, { scale: new Vec3(1.25, 1.25, 1.25) }, { easing: 'sineOut' })
+                .to(0.12, { scale: new Vec3(sx < 0 ? -1.25 : 1.25, 1.25, 1.25) }, { easing: 'sineOut' })
                 .call(() => {
                     this.swapToOpenLock();
                 })
-                .to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+                .to(0.18, { scale: this.originalScale }, { easing: 'backOut' })
                 .call(() => resolve())
                 .start();
         });

@@ -3,18 +3,20 @@
  *
  * Решает OI-203 v2: постоянная пульсация (яркость/контраст) + уровни снижаются
  * через высоту (scale.y) и интенсивность (opacity), ширина не меняется.
- * Предпочитает сжатую PNG-sequence из resources и использует DOM overlay
- * только как fallback для одиночного animated asset.
+ * Использует только сжатую PNG-sequence из resources.
  * Unlock-последовательность использует 3 явные ступени затухания: 3 → 2 → 1 → 0.
  *
  * Привязывается к FireSprite node. ThreatView.setFireLevel() вызывает setLevel().
  */
-import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources, Asset, UITransform, game, sys, director } from 'cc';
+import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources } from 'cc';
+import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
 
 @ccclass('SaveTotoFireAnimation')
 export class SaveTotoFireAnimation extends Component {
+    private logger = createSaveTotoLogger('SaveTotoFireAnimation');
+
     @property({ type: CCFloat, tooltip: 'Ширина огня (scale.x, неизменна)' })
     public baseScaleX: number = 1;
 
@@ -54,19 +56,11 @@ export class SaveTotoFireAnimation extends Component {
     @property({ type: CCFloat, tooltip: 'FPS для fire frame sequence' })
     public sequenceFrameFps: number = 10;
 
-    @property({ type: CCString, tooltip: 'Resources path до animated fire asset без расширения' })
-    public animatedOverlayResourcePath: string = 'save-toto/fire/fire';
-
     private opacity: UIOpacity | null = null;
     private idleTween: any = null;
     private level = 3;
     private sprite: Sprite | null = null;
     private fallbackSpriteFrame: SpriteFrame | null = null;
-    private fireUiTransform: UITransform | null = null;
-    private canvasTransform: UITransform | null = null;
-    private overlayImg: HTMLImageElement | null = null;
-    private overlayContainer: HTMLElement | null = null;
-    private overlayReady = false;
     private sequenceFrames: SpriteFrame[] = [];
     private sequenceReady = false;
     private sequenceFrameIndex = 0;
@@ -105,8 +99,6 @@ export class SaveTotoFireAnimation extends Component {
     onLoad(): void {
         this.opacity = this.node.getComponent(UIOpacity) || this.node.addComponent(UIOpacity);
         this.sprite = this.node.getComponent(Sprite) || null;
-        this.fireUiTransform = this.node.getComponent(UITransform) || null;
-        this.canvasTransform = director.getScene()?.getChildByName('Canvas')?.getComponent(UITransform) || null;
         this.fallbackSpriteFrame = this.sprite?.spriteFrame ?? null;
         // FIX: anchor снизу — чтобы scaleY опускал только верхнюю часть, низ неподвижен.
         const ut = this.node.getComponent('cc.UITransform') as any;
@@ -119,7 +111,7 @@ export class SaveTotoFireAnimation extends Component {
         }
         this.node.setScale(new Vec3(this.baseScaleX, this.maxScaleY, 1));
         this.opacity.opacity = this.maxOpacity;
-        if (this.sprite && (this.shouldUseSequenceFrames() || this.shouldUseAnimatedOverlay())) {
+        if (this.sprite && this.shouldUseSequenceFrames()) {
             this.sprite.spriteFrame = null;
         }
         this.loadSequenceFrames();
@@ -127,24 +119,7 @@ export class SaveTotoFireAnimation extends Component {
     }
 
     update(dt: number): void {
-        if (this.sequenceReady) {
-            this.advanceSequence(dt);
-            return;
-        }
-
-        this.syncOverlayToNode();
-    }
-
-    onDisable(): void {
-        this.setOverlayVisible(false);
-    }
-
-    onEnable(): void {
-        this.setOverlayVisible(true);
-    }
-
-    onDestroy(): void {
-        this.destroyOverlayElement();
+        this.advanceSequence(dt);
     }
 
     /** Постоянная пульсация: дрожание высоты + мерцание opacity (вау-эффект). */
@@ -183,78 +158,44 @@ export class SaveTotoFireAnimation extends Component {
         if (this.opacity) Tween.stopAllByTarget(this.opacity);
     }
 
-    private shouldUseAnimatedOverlay(): boolean {
-        return !!this.animatedOverlayResourcePath && sys.isBrowser && typeof document !== 'undefined';
-    }
-
     private shouldUseSequenceFrames(): boolean {
         return !!this.sequenceFramesResourceDir;
     }
 
     private loadSequenceFrames(): void {
         if (!this.shouldUseSequenceFrames()) {
-            this.loadAnimatedOverlay();
+            this.logger.warn('Diagnostic: sequenceFramesResourceDir is empty, fire sequence will use fallback sprite.');
+            this.restoreFallbackSprite();
             return;
         }
 
         resources.loadDir(this.sequenceFramesResourceDir, SpriteFrame, (err, assets) => {
             if (err || !assets || assets.length === 0 || !this.node?.isValid || !this.sprite) {
-                this.loadAnimatedOverlay();
+                this.logger.warn(`Diagnostic: failed to load fire frames from ${this.sequenceFramesResourceDir}. err=${err}`);
                 return;
             }
 
-            this.sequenceFrames = assets
+            const filteredFrames = assets
                 .slice()
+                .filter((frame) => /^Layer\s+\d+$/i.test(frame.name))
                 .sort((a, b) => this.extractFrameOrder(a.name) - this.extractFrameOrder(b.name));
+
+            if (filteredFrames.length === 0) {
+                this.logger.warn(`Diagnostic: no strict fire frames matched in ${this.sequenceFramesResourceDir}. assets=${assets.length}`);
+                this.restoreFallbackSprite();
+                return;
+            }
+
+            if (filteredFrames.length !== assets.length) {
+                this.logger.info(`Diagnostic: filtered fire frames ${filteredFrames.length}/${assets.length}. Ignored non-Layer assets in ${this.sequenceFramesResourceDir}.`);
+            }
+
+            this.sequenceFrames = filteredFrames;
             this.sequenceReady = this.sequenceFrames.length > 0;
             this.sequenceFrameIndex = 0;
             this.sequenceFrameTimer = 0;
             this.applySequenceFrame();
-        });
-    }
-
-    private loadAnimatedOverlay(): void {
-        if (!this.shouldUseAnimatedOverlay()) return;
-
-        resources.load(this.animatedOverlayResourcePath, Asset, (err, asset) => {
-            if (err || !asset || !this.node?.isValid) {
-                this.restoreFallbackSprite();
-                return;
-            }
-
-            const nativeUrl = (asset as Asset & { nativeUrl?: string }).nativeUrl;
-            if (!nativeUrl) {
-                this.restoreFallbackSprite();
-                return;
-            }
-
-            const container = game.container as HTMLElement | null;
-            if (!container || !game.canvas) {
-                this.restoreFallbackSprite();
-                return;
-            }
-
-            if (getComputedStyle(container).position === 'static') {
-                container.style.position = 'relative';
-            }
-
-            const img = document.createElement('img');
-            img.src = nativeUrl;
-            img.alt = 'fire';
-            img.draggable = false;
-            img.style.position = 'absolute';
-            img.style.pointerEvents = 'none';
-            img.style.userSelect = 'none';
-            img.style.transformOrigin = 'center bottom';
-            img.style.objectFit = 'fill';
-            img.style.zIndex = '4';
-            img.style.display = 'none';
-
-            container.appendChild(img);
-            this.overlayContainer = container;
-            this.overlayImg = img;
-            this.overlayReady = true;
-            this.syncOverlayToNode();
+            this.logger.info(`Fire sequence ready. frames=${this.sequenceFrames.length}, fps=${this.sequenceFrameFps}`);
         });
     }
 
@@ -270,7 +211,7 @@ export class SaveTotoFireAnimation extends Component {
     }
 
     private advanceSequence(dt: number): void {
-        if (!this.sprite || this.sequenceFrames.length <= 1 || !this.node.activeInHierarchy || this.level <= 0) {
+        if (!this.sequenceReady || !this.sprite || this.sequenceFrames.length <= 1 || !this.node.activeInHierarchy || this.level <= 0) {
             return;
         }
 
@@ -286,58 +227,6 @@ export class SaveTotoFireAnimation extends Component {
     private applySequenceFrame(): void {
         if (!this.sprite || this.sequenceFrames.length === 0) return;
         this.sprite.spriteFrame = this.sequenceFrames[this.sequenceFrameIndex] || this.sequenceFrames[0];
-    }
-
-    private syncOverlayToNode(): void {
-        if (!this.overlayReady || !this.overlayImg || !this.overlayContainer || !game.canvas || !this.fireUiTransform || !this.canvasTransform) {
-            return;
-        }
-
-        if (!this.node.activeInHierarchy || this.level <= 0) {
-            this.overlayImg.style.display = 'none';
-            return;
-        }
-
-        const width = this.fireUiTransform.contentSize.width;
-        const height = this.fireUiTransform.contentSize.height;
-        const minWorld = this.fireUiTransform.convertToWorldSpaceAR(new Vec3(-width * this.fireUiTransform.anchorX, -height * this.fireUiTransform.anchorY, 0));
-        const maxWorld = this.fireUiTransform.convertToWorldSpaceAR(new Vec3(width * (1 - this.fireUiTransform.anchorX), height * (1 - this.fireUiTransform.anchorY), 0));
-
-        const minLocal = this.canvasTransform.convertToNodeSpaceAR(minWorld);
-        const maxLocal = this.canvasTransform.convertToNodeSpaceAR(maxWorld);
-        const canvasSize = this.canvasTransform.contentSize;
-        const canvasRect = game.canvas.getBoundingClientRect();
-        const containerRect = this.overlayContainer.getBoundingClientRect();
-
-        const left = ((minLocal.x + canvasSize.width * 0.5) / canvasSize.width) * canvasRect.width + (canvasRect.left - containerRect.left);
-        const right = ((maxLocal.x + canvasSize.width * 0.5) / canvasSize.width) * canvasRect.width + (canvasRect.left - containerRect.left);
-        const top = ((canvasSize.height * 0.5 - maxLocal.y) / canvasSize.height) * canvasRect.height + (canvasRect.top - containerRect.top);
-        const bottom = ((canvasSize.height * 0.5 - minLocal.y) / canvasSize.height) * canvasRect.height + (canvasRect.top - containerRect.top);
-
-        this.overlayImg.style.left = `${left}px`;
-        this.overlayImg.style.top = `${top}px`;
-        this.overlayImg.style.width = `${Math.max(0, right - left)}px`;
-        this.overlayImg.style.height = `${Math.max(0, bottom - top)}px`;
-        this.overlayImg.style.opacity = `${(this.opacity?.opacity ?? 255) / 255}`;
-        this.overlayImg.style.display = 'block';
-    }
-
-    private setOverlayVisible(visible: boolean): void {
-        if (!this.overlayImg) return;
-        if (!visible || this.level <= 0 || !this.node.activeInHierarchy) {
-            this.overlayImg.style.display = 'none';
-            return;
-        }
-        this.syncOverlayToNode();
-    }
-
-    private destroyOverlayElement(): void {
-        if (this.overlayImg?.parentElement) {
-            this.overlayImg.parentElement.removeChild(this.overlayImg);
-        }
-        this.overlayImg = null;
-        this.overlayContainer = null;
-        this.overlayReady = false;
     }
 
     private levelTargetScaleY(): number {

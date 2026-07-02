@@ -12,11 +12,14 @@ import { SaveTotoLockView } from './SaveTotoLockView';
 import { SaveTotoPackshotIntroAnimation } from '../animations/SaveTotoPackshotIntroAnimation';
 import { SaveTotoFireAnimation } from '../animations/SaveTotoFireAnimation';
 import { SaveTotoAutoFloat } from '../animations/SaveTotoAutoFloat';
+import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
 
 @ccclass('SaveTotoThreatView')
 export class SaveTotoThreatView extends Component implements ISaveTotoThreatView {
+    private logger = createSaveTotoLogger('SaveTotoThreatView');
+
     @property(Node)
     public fireNode: Node = null!;
 
@@ -45,7 +48,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         if (this.fireAnim) {
             this.fireAnim.setLevel(3);
         } else {
-            this.setFireLevelFallback(3);
+            this.logger.warn('Diagnostic: SaveTotoFireAnimation is missing on fireNode. Fire level changes will not animate.');
         }
     }
 
@@ -53,25 +56,9 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.currentFireLevel = level;
         if (this.fireAnim) {
             this.fireAnim.setLevel(level);
-            return;
+        } else {
+            this.logger.warn(`Diagnostic: setFireLevel(${level}) ignored because SaveTotoFireAnimation is not bound.`);
         }
-        this.setFireLevelFallback(level);
-    }
-
-    /** Legacy fallback если SaveTotoFireAnimation не привязан. */
-    private setFireLevelFallback(level: SaveTotoFireLevel): void {
-        if (!this.fireNode) return;
-        const t = level / 3;
-        const scaleX = 1.0;
-        const scaleY = 0.4 + t * 0.6;
-        const opacityVal = level === 0 ? 0 : 90 + t * 165;
-        const op = this.fireNode.getComponent(UIOpacity) || this.fireNode.addComponent(UIOpacity);
-        tween(this.fireNode)
-            .to(0.4, { scale: new Vec3(scaleX, scaleY, 1) }, { easing: 'sineInOut' })
-            .start();
-        tween(op)
-            .to(0.4, { opacity: opacityVal }, { easing: 'sineInOut' })
-            .start();
     }
 
     public getFireLevel(): SaveTotoFireLevel {

@@ -10,11 +10,14 @@ import { _decorator, Component, Node, tween, Vec3, UIOpacity, Sprite, Graphics, 
 import { SaveTotoBonusView as ISaveTotoBonusView } from '../interfaces/SaveTotoViews';
 import { SaveTotoBasketView } from './SaveTotoBasketView';
 import { SaveTotoBonusReward } from '../types';
+import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
 
 @ccclass('SaveTotoBonusView')
 export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
+    private logger = createSaveTotoLogger('SaveTotoBonusView');
+
     @property(Node)
     public bonusRoot: Node = null!;
 
@@ -130,6 +133,7 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
     public async hideBaskets(): Promise<void> {
         if (!this.bonusRoot) return;
         const op = this.bonusRoot.getComponent(UIOpacity) || this.bonusRoot.addComponent(UIOpacity);
+        this.logger.info('hideBaskets start');
         return new Promise<void>((resolve) => {
             tween(op)
                 .to(0.25, { opacity: 0 })
@@ -138,9 +142,21 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
                     // Убираем dimmer (reels уже не нужны — дальше packshot).
                     if (this.dimmerNode) {
                         const dop = this.dimmerNode.getComponent(UIOpacity);
-                        if (dop) tween(dop).to(0.25, { opacity: 0 }).call(() => { this.dimmerNode.active = false; }).start();
-                        else this.dimmerNode.active = false;
+                        if (dop) {
+                            tween(dop)
+                                .to(0.25, { opacity: 0 })
+                                .call(() => {
+                                    this.dimmerNode.active = false;
+                                    this.logger.info('hideBaskets done (bonusRoot + dimmer)');
+                                    resolve();
+                                })
+                                .start();
+                            return;
+                        }
+
+                        this.dimmerNode.active = false;
                     }
+                    this.logger.info('hideBaskets done (bonusRoot)');
                     resolve();
                 })
                 .start();
@@ -173,4 +189,3 @@ export class SaveTotoBonusView extends Component implements ISaveTotoBonusView {
         // MVP: оставшиеся корзины остаются закрытыми (OI-006).
     }
 }
-

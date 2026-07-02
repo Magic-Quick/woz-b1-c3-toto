@@ -327,18 +327,20 @@ export class SaveTotoStateMachine extends Component {
     private async enterPayout(): Promise<void> {
         this.state = SaveTotoState.Payout;
         this.unwireBasketInputs();
+        this.logger.info('enterPayout start');
         await this.bonusView.hideBaskets();
 
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
 
-        await this.threatView.playPackshotTransition();
+        await Promise.all([
+            this.threatView.playPackshotTransition(),
+            this.hideGameplayLayers(),
+        ]);
 
         // Баланс уже фактический после picks (credit + multiplier).
         const finalWin = this.slotView.getBalanceValue();
 
-        // Скрыть лишние спрайты (slot/threat слои) — экран пустеет перед финалом.
-        await this.hideGameplayLayers();
-
+        this.logger.info(`enterPayout visuals hidden. finalWin=${finalWin}`);
         this.enterEndCard(finalWin);
     }
 
@@ -348,6 +350,7 @@ export class SaveTotoStateMachine extends Component {
         const threatLayer = this.threatView.node;
         const layers = [slotLayer, threatLayer].filter(n => n && n.isValid);
         if (layers.length === 0) return;
+        this.logger.info(`hideGameplayLayers start layers=${layers.map(l => l.name).join(',')}`);
         return new Promise<void>((resolve) => {
             let done = 0;
             const total = layers.length;
@@ -358,7 +361,10 @@ export class SaveTotoStateMachine extends Component {
                     .call(() => {
                         layer.active = false;
                         done++;
-                        if (done >= total) resolve();
+                        if (done >= total) {
+                            this.logger.info('hideGameplayLayers done');
+                            resolve();
+                        }
                     })
                     .start();
             }

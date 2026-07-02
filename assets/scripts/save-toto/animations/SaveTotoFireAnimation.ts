@@ -56,6 +56,9 @@ export class SaveTotoFireAnimation extends Component {
     @property({ type: CCFloat, tooltip: 'FPS для fire frame sequence' })
     public sequenceFrameFps: number = 10;
 
+    @property({ type: CCString, tooltip: 'Порядок Layer-кадров, например 1,4,5,6,5,4' })
+    public sequenceFrameOrder: string = '1,4,5,6,5,4';
+
     private opacity: UIOpacity | null = null;
     private idleTween: any = null;
     private level = 3;
@@ -66,25 +69,28 @@ export class SaveTotoFireAnimation extends Component {
     private sequenceFrameIndex = 0;
     private sequenceFrameTimer = 0;
 
-    private getLevelProfile(level: 0 | 1 | 2 | 3): { scaleY: number; opacity: number; pulseAmplitude: number } {
+    private getLevelProfile(level: 0 | 1 | 2 | 3): { scaleY: number; opacity: number; pulseAmplitude: number; fpsMultiplier: number } {
         switch (level) {
             case 2:
                 return {
                     scaleY: this.level2ScaleY,
                     opacity: this.level2Opacity,
                     pulseAmplitude: this.idleAmplitude * 0.72,
+                    fpsMultiplier: 0.88,
                 };
             case 1:
                 return {
                     scaleY: this.level1ScaleY,
                     opacity: this.level1Opacity,
                     pulseAmplitude: this.idleAmplitude * 0.45,
+                    fpsMultiplier: 0.72,
                 };
             case 0:
                 return {
                     scaleY: this.level0ScaleY,
                     opacity: 0,
                     pulseAmplitude: 0,
+                    fpsMultiplier: 0,
                 };
             case 3:
             default:
@@ -92,6 +98,7 @@ export class SaveTotoFireAnimation extends Component {
                     scaleY: this.maxScaleY,
                     opacity: this.maxOpacity,
                     pulseAmplitude: this.idleAmplitude,
+                    fpsMultiplier: 1,
                 };
         }
     }
@@ -190,12 +197,19 @@ export class SaveTotoFireAnimation extends Component {
                 this.logger.info(`Diagnostic: filtered fire frames ${filteredFrames.length}/${assets.length}. Ignored non-Layer assets in ${this.sequenceFramesResourceDir}.`);
             }
 
-            this.sequenceFrames = filteredFrames;
+            const orderedFrames = this.buildOrderedSequence(filteredFrames);
+            if (orderedFrames.length === 0) {
+                this.logger.warn(`Diagnostic: failed to build ordered fire sequence from ${this.sequenceFrameOrder}.`);
+                this.restoreFallbackSprite();
+                return;
+            }
+
+            this.sequenceFrames = orderedFrames;
             this.sequenceReady = this.sequenceFrames.length > 0;
             this.sequenceFrameIndex = 0;
             this.sequenceFrameTimer = 0;
             this.applySequenceFrame();
-            this.logger.info(`Fire sequence ready. frames=${this.sequenceFrames.length}, fps=${this.sequenceFrameFps}`);
+            this.logger.info(`Fire sequence ready. order=${this.sequenceFrames.map(frame => frame.name).join(' -> ')}, fps=${this.sequenceFrameFps}`);
         });
     }
 
@@ -210,12 +224,47 @@ export class SaveTotoFireAnimation extends Component {
         return match ? parseInt(match[1], 10) : 0;
     }
 
+    private buildOrderedSequence(filteredFrames: SpriteFrame[]): SpriteFrame[] {
+        const framesByOrder = new Map<number, SpriteFrame>();
+        filteredFrames.forEach((frame) => framesByOrder.set(this.extractFrameOrder(frame.name), frame));
+
+        const requestedOrder = this.sequenceFrameOrder
+            .split(',')
+            .map((token) => parseInt(token.trim(), 10))
+            .filter((value) => Number.isFinite(value));
+
+        if (requestedOrder.length === 0) {
+            this.logger.warn(`Diagnostic: invalid sequenceFrameOrder="${this.sequenceFrameOrder}". Falling back to sorted Layer order.`);
+            return filteredFrames;
+        }
+
+        const orderedFrames: SpriteFrame[] = [];
+        const missingOrders: number[] = [];
+
+        requestedOrder.forEach((order) => {
+            const frame = framesByOrder.get(order);
+            if (frame) {
+                orderedFrames.push(frame);
+            } else {
+                missingOrders.push(order);
+            }
+        });
+
+        if (missingOrders.length > 0) {
+            this.logger.warn(`Diagnostic: missing fire Layer frames for order entries: ${missingOrders.join(', ')}.`);
+        }
+
+        return orderedFrames;
+    }
+
     private advanceSequence(dt: number): void {
         if (!this.sequenceReady || !this.sprite || this.sequenceFrames.length <= 1 || !this.node.activeInHierarchy || this.level <= 0) {
             return;
         }
 
-        const frameDuration = 1 / Math.max(this.sequenceFrameFps, 1);
+        const profile = this.getLevelProfile(this.level as 0 | 1 | 2 | 3);
+        const effectiveFps = Math.max(this.sequenceFrameFps * profile.fpsMultiplier, 1);
+        const frameDuration = 1 / effectiveFps;
         this.sequenceFrameTimer += dt;
         while (this.sequenceFrameTimer >= frameDuration) {
             this.sequenceFrameTimer -= frameDuration;

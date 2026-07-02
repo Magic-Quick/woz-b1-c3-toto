@@ -72,25 +72,37 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     }
 
     public async playPackshotTransition(): Promise<void> {
+        this.logger.info('playPackshotTransition start');
+
         // Огонь гаснет.
         this.setFireLevel(0);
 
-        // Скрываем всё в threat-слое: клетку, замки, собранного Тото.
-        // Финальный Тото (toto-full) показывается отдельно в EndCardView.show().
+        // Скрываем основную композицию клетки синхронно, чтобы финальный fade не расползался.
         const cageSwing = this.cageRoot?.getChildByName('CageSwingRoot') ?? null;
-        const fadeTarget = cageSwing || this.cageRoot;
-        if (fadeTarget) {
-            const op = fadeTarget.getComponent(UIOpacity) || fadeTarget.addComponent(UIOpacity);
-            await new Promise<void>((resolve) => {
+        const fadeTargets = [cageSwing || this.cageRoot, this.fireNode].filter((node): node is Node => !!node && node.isValid);
+        const duration = 0.4;
+        if (fadeTargets.length === 0) {
+            this.logger.info('playPackshotTransition done (no targets)');
+            return;
+        }
+
+        await new Promise<void>((resolve) => {
+            let done = 0;
+            fadeTargets.forEach((target) => {
+                const op = target.getComponent(UIOpacity) || target.addComponent(UIOpacity);
                 tween(op)
-                    .to(0.5, { opacity: 0 }, { easing: 'sineIn' })
+                    .to(duration, { opacity: 0 }, { easing: 'sineIn' })
                     .call(() => {
-                        fadeTarget.active = false;
-                        resolve();
+                        target.active = false;
+                        done += 1;
+                        if (done >= fadeTargets.length) {
+                            this.logger.info(`playPackshotTransition done. targets=${fadeTargets.length}`);
+                            resolve();
+                        }
                     })
                     .start();
             });
-        }
+        });
     }
 
     public async playTotoFreed(): Promise<void> {

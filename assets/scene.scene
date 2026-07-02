@@ -682,7 +682,8 @@
     "level2Opacity": 190,
     "level1Opacity": 105,
     "sequenceFramesResourceDir": "save-toto/fire",
-    "sequenceFrameFps": 10,
+    "sequenceFrameFps": 7,
+    "sequenceFrameOrder": "1,4,5,6,5,4",
     "_id": "2bM6Z1xEFNA4KgOB8UhPKm"
   },
   {
@@ -6552,7 +6553,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -300,
+      "y": -250,
       "z": 0
     },
     "_lrot": {
@@ -6590,8 +6591,8 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 450,
-      "height": 450
+      "width": 400,
+      "height": 300
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -6650,7 +6651,7 @@
     "_enabled": true,
     "__prefab": null,
     "rotationDurationSec": 5,
-    "scaleMultiplier": 1,
+    "scaleMultiplier": 1.18,
     "_id": "bdpLM1PxRDip29C9MfjYi8"
   },
   {
@@ -8534,7 +8535,7 @@
         "__id__": 274
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [
       {
         "__id__": 277
@@ -9040,6 +9041,10 @@
     "__prefab": null,
     "rotationDurationSec": 8,
     "scaleMultiplier": 1,
+    "pulseDurationSec": 1.6,
+    "minOpacity": 150,
+    "maxOpacity": 245,
+    "scalePulseAmplitude": 0.05,
     "_id": "f8U/uOtBlOPqKoPVGafuXD"
   },
   {

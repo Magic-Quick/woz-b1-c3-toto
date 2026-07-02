@@ -347,8 +347,7 @@ export class SaveTotoStateMachine extends Component {
     /** Скрыть gameplay-слои (SlotLayer, ThreatLayer) перед показом endcard. */
     private async hideGameplayLayers(): Promise<void> {
         const slotLayer = this.slotView.node;
-        const threatLayer = this.threatView.node;
-        const layers = [slotLayer, threatLayer].filter(n => n && n.isValid);
+        const layers = [slotLayer].filter(n => n && n.isValid);
         if (layers.length === 0) return;
         this.logger.info(`hideGameplayLayers start layers=${layers.map(l => l.name).join(',')}`);
         return new Promise<void>((resolve) => {

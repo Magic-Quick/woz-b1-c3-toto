@@ -64,6 +64,11 @@ export class SaveTotoSlotController extends Component {
     private currentSpinIndex: number = 0;
     private lastScatterResult: SaveTotoScatterResult = null;
 
+    // DA-003: guard против повторного onSpinComplete (дублирующий COLUMN_MOVEMENT_COMPLETE
+    // или stopAllColumns могут вызвать двойной emit SPIN_COMPLETE + двойной инкремент
+    // currentSpinIndex, из-за чего scripted spin-нумерация уезжает).
+    private spinCompletionPending: boolean = false;
+
     private logger = createSaveTotoLogger('SaveTotoSlotController');
 
     public setDependencies(
@@ -138,6 +143,8 @@ export class SaveTotoSlotController extends Component {
         this.resetAlphaChange();
         const targetSpin = this.currentSpinIndex + 1;
         this.logger.info(`startAllColumnsMovement spin=${targetSpin}`);
+        // DA-003: новый спин → разрешаем снова обработать completion.
+        this.spinCompletionPending = false;
         this.forcedSpawnManager?.applyForSpin(targetSpin);
         this.node.emit(SaveTotoSlotEvents.SPIN_COMPLETE + '-started');
         this.columns.forEach((columnNode, index) => {
@@ -163,7 +170,11 @@ export class SaveTotoSlotController extends Component {
         const states = this.columns.map((col, idx) => ({ idx, moving: col.getComponent(SaveTotoSlotColumn)?.isColumnMoving() ?? false }));
         const allStopped = states.every(s => !s.moving);
         this.logger.info(`checkSpinCompletion allStopped=${allStopped} states=${JSON.stringify(states)}`);
-        if (allStopped) {
+        // DA-003: обрабатываем completion ровно один раз на спин. Повторные
+        // срабатывания (дублирующий event колонки / stopAllColumns) не должны
+        // вызывать повторный emit + инкремент currentSpinIndex.
+        if (allStopped && !this.spinCompletionPending) {
+            this.spinCompletionPending = true;
             this.onSpinComplete();
         }
     }

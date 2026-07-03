@@ -10,6 +10,18 @@ import { _decorator, Component, Node, Sprite, SpriteFrame, UIOpacity, tween, Vec
 
 const { ccclass, property } = _decorator;
 
+interface CoinState {
+    node: Node;
+    opacity: UIOpacity;
+    x: number;
+    y: number;
+    rot: number;
+    vx: number;
+    vy: number;
+    spin: number;
+    elapsed: number;
+}
+
 @ccclass('SaveTotoCoinFountain')
 export class SaveTotoCoinFountain extends Component {
     @property(SpriteFrame)
@@ -42,6 +54,7 @@ export class SaveTotoCoinFountain extends Component {
     private running = false;
     private spawnTimer = 0;
     private elapsed = 0;
+    private coins: CoinState[] = [];
 
     // НЕ вызываем this.node.active = false в onLoad — EndFountain стартует
     // неактивным в сцене. onLoad срабатывает при первой активации EndCardLayer
@@ -65,11 +78,13 @@ export class SaveTotoCoinFountain extends Component {
     }
 
     onDisable(): void {
-        this.stop();
+        this.running = false;
+        this.destroyAllCoins();
     }
 
     onDestroy(): void {
-        this.stop();
+        this.running = false;
+        this.destroyAllCoins();
     }
 
     update(dt: number): void {
@@ -79,67 +94,84 @@ export class SaveTotoCoinFountain extends Component {
             this.stop();
             return;
         }
+
+        // Спавн.
         this.spawnTimer += dt;
         if (this.spawnTimer >= this.spawnInterval) {
-            this.spawnTimer = 0;
+            this.spawnTimer -= this.spawnInterval;
             for (let i = 0; i < this.coinsPerBurst; i++) {
                 this.spawnCoin();
+            }
+        }
+
+        // Физика + fade всех активных монет в одном цикле (DA-002).
+        // Раньше каждая монета имела собственный requestAnimationFrame с
+        // захардкоженным dt = 1/60, что ломало физику на не-60Гц и плодило
+        // ~100 параллельных RAF-циклов.
+        for (let i = this.coins.length - 1; i >= 0; i--) {
+            const coin = this.coins[i];
+            coin.elapsed += dt;
+            coin.x += coin.vx * dt;
+            coin.y += coin.vy * dt - 0.5 * this.gravity * coin.elapsed * dt;
+            coin.rot += coin.spin * dt;
+
+            if (!coin.node.isValid) {
+                this.coins.splice(i, 1);
+                continue;
+            }
+            coin.node.setPosition(coin.x, coin.y, 0);
+            coin.node.angle = coin.rot;
+
+            const lifeT = coin.elapsed / this.lifetime;
+            if (lifeT > 0.7) {
+                coin.opacity.opacity = Math.round(255 * (1 - (lifeT - 0.7) / 0.3));
+            }
+
+            if (coin.elapsed >= this.lifetime) {
+                coin.node.destroy();
+                this.coins.splice(i, 1);
             }
         }
     }
 
     private spawnCoin(): void {
         if (!this.coinSpriteFrame) return;
-        const coin = new Node('FountainCoin');
-        this.node.addChild(coin);
+        const coinNode = new Node('FountainCoin');
+        this.node.addChild(coinNode);
 
-        const sprite = coin.addComponent(Sprite);
+        const sprite = coinNode.addComponent(Sprite);
         sprite.spriteFrame = this.coinSpriteFrame;
         sprite.sizeMode = Sprite.SizeMode.TRIMMED;
-        const ut = coin.getComponent('cc.UITransform') as any;
+        const ut = coinNode.getComponent('cc.UITransform') as any;
         ut.setContentSize(this.coinSize, this.coinSize);
 
-        const op = coin.addComponent(UIOpacity);
-        op.opacity = 255;
+        const opacity = coinNode.addComponent(UIOpacity);
+        opacity.opacity = 255;
 
-        // Начальная позиция — центр контейнера.
-        coin.setPosition(0, 0, 0);
+        coinNode.setPosition(0, 0, 0);
 
-        // Случайная скорость.
         const vx = (Math.random() - 0.5) * this.velocityXSpread;
         const vy = this.velocityY + Math.random() * 200;
-        const spin = (Math.random() - 0.5) * 720; // град/сек
+        const spin = (Math.random() - 0.5) * 720;
 
-        let elapsed = 0;
-        let x = 0, y = 0;
-        let rot = 0;
-
-        const tick = () => {
-            if (!coin.isValid) return;
-            const dt = 1 / 60;
-            elapsed += dt;
-            x += vx * dt;
-            y += vy * dt - 0.5 * this.gravity * elapsed * dt;
-            rot += spin * dt;
-            coin.setPosition(x, y, 0);
-            coin.angle = rot;
-
-            // Fade-out в последней трети жизни.
-            const lifeT = elapsed / this.lifetime;
-            if (lifeT > 0.7) {
-                op.opacity = Math.round(255 * (1 - (lifeT - 0.7) / 0.3));
-            }
-
-            if (elapsed < this.lifetime) {
-                requestAnimationFrame(tick);
-            } else {
-                if (coin.isValid) coin.destroy();
-            }
-        };
-        requestAnimationFrame(tick);
+        this.coins.push({
+            node: coinNode,
+            opacity,
+            x: 0,
+            y: 0,
+            rot: 0,
+            vx,
+            vy,
+            spin,
+            elapsed: 0,
+        });
     }
 
     private destroyAllCoins(): void {
+        for (const coin of this.coins) {
+            if (coin.node.isValid) coin.node.destroy();
+        }
+        this.coins.length = 0;
         const children = [...this.node.children];
         children.forEach((child) => child.destroy());
     }

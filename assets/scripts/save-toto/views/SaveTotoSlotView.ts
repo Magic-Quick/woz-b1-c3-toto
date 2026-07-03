@@ -8,7 +8,7 @@
  * state machine слушает SPIN_COMPLETE. playSpinToResult оставлен для контракта/гибкости.
  */
 
-import { _decorator, Component, Label, Node, tween, Vec3, UIOpacity } from 'cc';
+import { _decorator, Component, Label, Node, tween, Tween, Vec3, UIOpacity } from 'cc';
 import { SaveTotoSlotView as ISaveTotoSlotView } from '../interfaces/SaveTotoViews';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotEvents } from '../events/SaveTotoEvents';
@@ -28,6 +28,16 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
     /** WIN — фиксированный visual label (OI-204); не записывается кодом, optional. */
     @property(Label)
     public winLabel: Label | null = null;
+
+    // DA-001: прокси-объект для tween-счёта баланса. Раньше использовался
+    // requestAnimationFrame, что не синхронно с кадровым циклом Cocos, могло
+    // стекаться в параллельные циклы и писать в уничтоженный Label.
+    private balanceTweenProxy: { value: number } = { value: 0 };
+    private balanceTween: Tween<typeof this.balanceTweenProxy> | null = null;
+
+    onDestroy(): void {
+        this.stopBalanceTween();
+    }
 
     public showIdleReel(_result: SaveTotoScriptedReelResult): void {
         // Idle reel: SlotController уже сгенерировал начальные элементы в start().
@@ -79,9 +89,15 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
     private pulseWinElement(node: Node): Promise<void> {
         return new Promise<void>((resolve) => {
             let done = false;
-            const finish = () => { if (!done) { done = true; resolve(); } };
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                if (timer) clearTimeout(timer);
+                resolve();
+            };
             // Таймаут-защита: если твин не завершился, резолвить через 1.5с.
-            setTimeout(finish, 1500);
+            timer = setTimeout(finish, 1500);
             tween(node)
                 .to(0.15, { scale: new Vec3(1.2, 1.2, 1.2), angle: 8 }, { easing: 'sineOut' })
                 .to(0.12, { scale: new Vec3(1, 1, 1), angle: -8 }, { easing: 'sineInOut' })
@@ -96,9 +112,15 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
     private blinkScatter(node: Node): Promise<void> {
         return new Promise<void>((resolve) => {
             let done = false;
-            const finish = () => { if (!done) { done = true; resolve(); } };
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                if (timer) clearTimeout(timer);
+                resolve();
+            };
             // Таймаут-защита.
-            setTimeout(finish, 2500);
+            timer = setTimeout(finish, 2500);
 
             // Light-вспышка под символом: ищем дочерний "Light" узел (в Toto prefab).
             const lightNode = node.getChildByName('Light');
@@ -140,77 +162,75 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
     }
 
     public setBalanceValue(value: number): void {
+        this.stopBalanceTween();
         if (this.balanceLabel) {
             this.balanceLabel.string = `${Math.round(Math.max(0, value))}`;
         }
     }
 
+    /** Остановить активный tween подсчёта баланса (DA-001). */
+    private stopBalanceTween(): void {
+        if (this.balanceTween) {
+            this.balanceTween.stop();
+            this.balanceTween = null;
+        }
+        Tween.stopAllByTarget(this.balanceTweenProxy);
+    }
+
+    /** Безопасно записать значение в balanceLabel (guard от уничтоженной ноды). */
+    private writeBalanceLabel(value: number): void {
+        if (this.balanceLabel?.isValid) {
+            this.balanceLabel.string = `${Math.round(value)}`;
+        }
+    }
+
+    /**
+     * Запустить tween-счёт баланса от `from` до `to` за `durationSec`.
+     * Заменяет бывший requestAnimationFrame-цикл (DA-001): синхронно с движком,
+     * отменяем через stopBalanceTween(), не пишет в уничтоженный Label.
+     */
+    private runBalanceTween(from: number, to: number, durationSec: number): Promise<void> {
+        this.stopBalanceTween();
+        this.balanceTweenProxy.value = from;
+        return new Promise<void>((resolve) => {
+            if (!this.balanceLabel?.isValid) {
+                resolve();
+                return;
+            }
+            this.balanceTween = tween(this.balanceTweenProxy)
+                .to(Math.max(durationSec, 0.001), { value: to }, {
+                    onUpdate: () => {
+                        this.writeBalanceLabel(this.balanceTweenProxy.value);
+                    },
+                })
+                .call(() => {
+                    this.writeBalanceLabel(to);
+                    this.balanceTween = null;
+                    resolve();
+                });
+            this.balanceTween.start();
+        });
+    }
+
     /** Плавно прибавить сумму к balance (короткий count-up для вау-эффекта pick'а). */
     public async addBalanceValue(delta: number): Promise<void> {
         if (!this.balanceLabel || delta <= 0) return;
-        const from = parseFloat(this.balanceLabel.string) || 0;
-        const to = from + delta;
-        const durationSec = 0.6;
-        const start = Date.now();
-        const dur = durationSec * 1000;
-        return new Promise<void>((resolve) => {
-            const tick = () => {
-                const t = Math.min((Date.now() - start) / dur, 1);
-                const v = Math.round(from + (to - from) * t);
-                this.balanceLabel.string = `${v}`;
-                if (t < 1) {
-                    requestAnimationFrame(tick);
-                } else {
-                    resolve();
-                }
-            };
-            requestAnimationFrame(tick);
-        });
+        const from = this.getBalanceValue();
+        await this.runBalanceTween(from, from + delta, 0.6);
     }
 
     /** Умножить balance на multiplier (count-up для вау-эффекта множителя). */
     public async multiplyBalanceValue(multiplier: number): Promise<void> {
         if (!this.balanceLabel || multiplier <= 0) return;
-        const from = parseFloat(this.balanceLabel.string) || 0;
-        const to = Math.round(from * multiplier);
-        const durationSec = 0.7;
-        const start = Date.now();
-        const dur = durationSec * 1000;
-        return new Promise<void>((resolve) => {
-            const tick = () => {
-                const t = Math.min((Date.now() - start) / dur, 1);
-                const v = Math.round(from + (to - from) * t);
-                this.balanceLabel.string = `${v}`;
-                if (t < 1) {
-                    requestAnimationFrame(tick);
-                } else {
-                    resolve();
-                }
-            };
-            requestAnimationFrame(tick);
-        });
+        const from = this.getBalanceValue();
+        await this.runBalanceTween(from, Math.round(from * multiplier), 0.7);
     }
 
     public countBalanceTo(value: number, durationSeconds: number): Promise<void> {
-        return new Promise<void>((resolve) => {
-            if (!this.balanceLabel) {
-                resolve();
-                return;
-            }
-            const from = parseFloat(this.balanceLabel.string) || 0;
-            const start = Date.now();
-            const dur = Math.max(durationSeconds, 0.001) * 1000;
-            const tick = () => {
-                const t = Math.min((Date.now() - start) / dur, 1);
-                const v = Math.round(from + (value - from) * t);
-                this.balanceLabel.string = `${v}`;
-                if (t < 1) {
-                    requestAnimationFrame(tick);
-                } else {
-                    resolve();
-                }
-            };
-            requestAnimationFrame(tick);
-        });
+        if (!this.balanceLabel) {
+            return Promise.resolve();
+        }
+        const from = this.getBalanceValue();
+        return this.runBalanceTween(from, value, durationSeconds);
     }
 }

@@ -16,6 +16,10 @@ import { SaveTotoSlotElement } from '../Elements/SaveTotoSlotElement';
 export class SaveTotoWinAnimationManager {
     private readonly elementAnimations = new Map<Node, SaveTotoBaseWinAnimation[]>();
     private settings: IWinAnimationSettings;
+    // DA-004: token для отсечения «протухших» отложенных батчей win-анимаций.
+    // Раньше scheduleAnimations использовал raw setTimeout, который срабатывал
+    // даже после stopAllAnimations() и заново запускал твинов на остановленных элементах.
+    private scheduleToken = 0;
 
     constructor(settings: IWinAnimationSettings) {
         this.settings = settings;
@@ -58,7 +62,13 @@ export class SaveTotoWinAnimationManager {
     private scheduleAnimations(animations: SaveTotoBaseWinAnimation[]): void {
         if (this.settings.globalDelay > 0) {
             // Задержка перед стартом win-анимаций (вторичный визуал).
-            setTimeout(() => this.startAnimations(animations), this.settings.globalDelay * 1000);
+            // DA-004: token-инвалидация, чтобы stopAllAnimations() отменил
+            // ещё не сработавший задержанный старт.
+            const token = ++this.scheduleToken;
+            setTimeout(() => {
+                if (token !== this.scheduleToken) return;
+                this.startAnimations(animations);
+            }, this.settings.globalDelay * 1000);
         } else {
             this.startAnimations(animations);
         }
@@ -77,6 +87,8 @@ export class SaveTotoWinAnimationManager {
     }
 
     public stopAllAnimations(): void {
+        // DA-004: инвалидируем отложенные старты.
+        this.scheduleToken++;
         this.elementAnimations.forEach((animations) => {
             this.stopAnimations(animations);
         });

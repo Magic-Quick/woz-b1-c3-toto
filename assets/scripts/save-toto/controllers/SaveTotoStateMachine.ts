@@ -18,6 +18,7 @@ import { SaveTotoSpinsController } from './SaveTotoSpinsController';
 import { SaveTotoSpinButtonController } from './SaveTotoSpinButtonController';
 import { SaveTotoRewardController } from './SaveTotoRewardController';
 import { SaveTotoLockUnlockController } from './SaveTotoLockUnlockController';
+import { SaveTotoAudioController } from './SaveTotoAudioController';
 import { SaveTotoAnalyticsAdapter } from '../adapters/SaveTotoAnalyticsAdapter';
 import { SaveTotoStoreAdapter } from '../adapters/SaveTotoStoreAdapter';
 import { SaveTotoEvents } from '../events/SaveTotoEvents';
@@ -87,6 +88,7 @@ export class SaveTotoStateMachine extends Component {
     public lockUnlockController: SaveTotoLockUnlockController;
     public analytics: SaveTotoAnalyticsAdapter;
     public store: SaveTotoStoreAdapter;
+    public audio: SaveTotoAudioController | null = null;
 
     private state: SaveTotoState = SaveTotoState.Preload;
     private picksDone: number = 0;
@@ -97,9 +99,10 @@ export class SaveTotoStateMachine extends Component {
     private basketClickHandlers: Array<(() => void) | null> = [];
     private introTutorialOverlay: Node | null = null;
 
-    public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter): void {
+    public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter, audio?: SaveTotoAudioController): void {
         this.analytics = analytics;
         this.store = store;
+        this.audio = audio ?? null;
         this.config = this.gameConfig.getConfig();
         this.lockUnlockController = new SaveTotoLockUnlockController(this.config.threat.lockOrder);
         for (const lockView of this.threatView.lockViews) {
@@ -114,17 +117,20 @@ export class SaveTotoStateMachine extends Component {
 
     public startFlow(): void {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_GAME_START, payload: { projectId: this.config?.projectId } });
+        this.audio?.playIntroBed();
         this.enterIntro();
     }
 
     protected onDisable(): void {
         this.cleanupInputBindings();
         this.coinFountain?.stop();
+        this.audio?.stopAll();
     }
 
     protected onDestroy(): void {
         this.cleanupInputBindings();
         this.coinFountain?.stop();
+        this.audio?.stopAll();
         this.unscheduleAllCallbacks();
     }
 
@@ -266,6 +272,7 @@ export class SaveTotoStateMachine extends Component {
     private onSpinClick(): void {
         if (this.state !== SaveTotoState.SpinReady) return;
         this.logger.info('onSpinClick -> enterSpinning');
+        this.audio?.notifyUserGesture();
         this.spinButtonController.node.off(SaveTotoEvents.EVT_SPIN_CLICK, this.onSpinClick, this);
         this.enterSpinning();
     }
@@ -277,6 +284,7 @@ export class SaveTotoStateMachine extends Component {
         this.hudView.showSpinButton(false);
         this.spinsController.removeSpins(1);
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_CLICK, payload: { tapIndex: this.spinNumber } });
+        this.audio?.playSpinLoop();
 
         this.slotController.node.once(SaveTotoSlotEvents.SPIN_COMPLETE, (payload: SaveTotoSpinCompletePayload) => {
             this.logger.info(`received SPIN_COMPLETE scatterCount=${payload.scatterCount} triggersBonus=${payload.triggersBonus}`);
@@ -289,12 +297,14 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.SpinResult;
         this.logger.info(`onSpinComplete state=SpinResult spin=${this.spinNumber} scatterCount=${payload.scatterCount}`);
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_RESULT, payload: { scatters: payload.scatterCount } });
+        this.audio?.stopSpinLoop();
 
         const isLastSpin = this.spinNumber >= this.totalSpins;
 
         try {
             if (isLastSpin) {
                 // Scatter highlight → bonus.
+                this.audio?.playScatterBonusStinger();
                 await this.slotView.highlightScatters();
                 this.logger.info('highlightScatters done -> enterBonusIntro');
                 this.enterBonusIntro();
@@ -332,6 +342,7 @@ export class SaveTotoStateMachine extends Component {
 
         const baseWins = [50000, 80000, 120000];
         const winAmount = baseWins[(this.spinNumber - 1) % baseWins.length] || 50000;
+        this.audio?.playPrizeChime();
 
         // Монеты к balance label (если coin animation привязан).
         try {
@@ -402,12 +413,14 @@ export class SaveTotoStateMachine extends Component {
     private async onBasketPick(basketIndex: number): Promise<void> {
         if (this.state !== SaveTotoState.BonusPick) return;
         this.state = SaveTotoState.UnlockSequence;
+        this.audio?.notifyUserGesture();
         this.bonusView.setAllBasketsEnabled(false);
 
         const pickIndex = this.picksDone;
         const reward = this.config!.bonus.rewardsByPickIndex[pickIndex];
         this.analytics.send({ name: SaveTotoEvents.EVT_BASKET_PICK, payload: { basketIndex, pickIndex } });
 
+        this.audio?.playBasketOpen();
         await this.bonusView.openBasket(basketIndex, reward);
         this.analytics.send({ name: SaveTotoEvents.EVT_REWARD_REVEALED, payload: { pickIndex, rewardId: reward.rewardId } });
 
@@ -415,16 +428,19 @@ export class SaveTotoStateMachine extends Component {
 
         // OI-511: balance наполняется суммой из корзины (credit) или умножается (multiplier).
         if (reward.kind === 0 /* SaveTotoRewardKind.CREDIT */) {
+            this.audio?.playPrizeChime();
             // Монеты из корзины к balance.
             if (this.coinAnimation) {
                 this.coinAnimation.play(basketAnchor.worldPosition);
             }
             await this.slotView.addBalanceValue(reward.value);
         } else if (reward.kind === 1 /* SaveTotoRewardKind.MULTIPLIER */) {
+            this.audio?.playMultiplierAccent();
             await this.slotView.multiplyBalanceValue(reward.value);
         }
 
         // Key flight из позиции корзины к замку + open-lock swap.
+        this.audio?.playUnlockSequence();
         const removedLock = await this.lockUnlockController.removeLockWithKey(pickIndex, basketAnchor.worldPosition);
         this.analytics.send({ name: SaveTotoEvents.EVT_LOCK_REMOVED, payload: { lockIndex: pickIndex, lockId: removedLock, locksRemaining: this.lockUnlockController.getRemainingLocks() } });
 
@@ -445,9 +461,12 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.Payout;
         this.unwireBasketInputs();
         this.logger.info('enterPayout start');
+        this.audio?.stopSpinLoop();
+        this.audio?.stopThreatLoop();
         await this.bonusView.hideBaskets();
 
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
+        this.audio?.playCoinShower();
 
         await Promise.all([
             this.threatView.playPackshotTransition(),
@@ -492,6 +511,7 @@ export class SaveTotoStateMachine extends Component {
         this.hudView.showCtaButton(false);
 
         await this.endCardView.show(finalWin);
+        this.audio?.playCtaJingle();
 
         // Запустить ограниченный по времени фонтан монет за Тото (ПОСЛЕ show — EndCardLayer активен).
         if (this.coinFountain) {
@@ -508,6 +528,7 @@ export class SaveTotoStateMachine extends Component {
 
     private onCtaClick(): void {
         if (this.state !== SaveTotoState.EndCard) return;
+        this.audio?.notifyUserGesture();
         this.analytics.send({ name: SaveTotoEvents.EVT_CTA_CLICK });
         this.coinFountain?.stop();
         const redirected = this.store.redirect();

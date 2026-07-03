@@ -25,6 +25,7 @@ import { SaveTotoComponentValidator } from '../common/SaveTotoComponentValidator
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 import { ISaveTotoForcedCellRule } from '../interfaces/IForcedRule';
 import { SaveTotoSymbolId } from '../types';
+import { SaveTotoAudioController } from './SaveTotoAudioController';
 
 const { ccclass, property } = _decorator;
 
@@ -197,6 +198,10 @@ export class SaveTotoBootstrap extends Component {
             iosUrl: config.cta.iosUrl,
             androidUrl: config.cta.androidUrl,
         });
-        this.stateMachine.init(analytics, store);
+        const audioNode = new Node('SaveTotoAudio');
+        this.node.addChild(audioNode);
+        const audio = audioNode.addComponent(SaveTotoAudioController);
+        audio.init();
+        this.stateMachine.init(analytics, store, audio);
     }
 }

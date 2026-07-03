@@ -8,7 +8,7 @@
  *
  * Привязывается к FireSprite node. ThreatView.setFireLevel() вызывает setLevel().
  */
-import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources } from 'cc';
+import { _decorator, Component, tween, Tween, Vec3, UIOpacity, CCFloat, CCString, Sprite, SpriteFrame, resources, Node } from 'cc';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
@@ -59,6 +59,30 @@ export class SaveTotoFireAnimation extends Component {
     @property({ type: CCString, tooltip: 'Порядок Layer-кадров, например 1,4,5,6,5,4' })
     public sequenceFrameOrder: string = '1,4,5,6,5,4';
 
+    @property({ type: Node, tooltip: 'Мягкий внешний glow под огнём' })
+    public glowBaseNode: Node | null = null;
+
+    @property({ type: Node, tooltip: 'Более яркий core glow под огнём' })
+    public glowCoreNode: Node | null = null;
+
+    @property({ type: CCFloat, tooltip: 'Базовый scale для outer glow' })
+    public glowBaseScale: number = 1.16;
+
+    @property({ type: CCFloat, tooltip: 'Базовый scale для core glow' })
+    public glowCoreScale: number = 1.04;
+
+    @property({ type: CCFloat, tooltip: 'Амплитуда пульса outer glow' })
+    public glowBasePulseAmplitude: number = 0.035;
+
+    @property({ type: CCFloat, tooltip: 'Амплитуда пульса core glow' })
+    public glowCorePulseAmplitude: number = 0.05;
+
+    @property({ type: CCFloat, tooltip: 'Полупериод outer glow' })
+    public glowBaseHalfDurationSec: number = 0.62;
+
+    @property({ type: CCFloat, tooltip: 'Полупериод core glow' })
+    public glowCoreHalfDurationSec: number = 0.42;
+
     private opacity: UIOpacity | null = null;
     private idleTween: any = null;
     private level = 3;
@@ -69,6 +93,47 @@ export class SaveTotoFireAnimation extends Component {
     private sequenceFrameIndex = 0;
     private sequenceFrameTimer = 0;
     private paused = false;
+    private glowBaseOpacity: UIOpacity | null = null;
+    private glowCoreOpacity: UIOpacity | null = null;
+
+    private getGlowProfile(level: 0 | 1 | 2 | 3): {
+        baseOpacity: number;
+        coreOpacity: number;
+        baseScale: number;
+        coreScale: number;
+    } {
+        switch (level) {
+            case 2:
+                return {
+                    baseOpacity: 138,
+                    coreOpacity: 172,
+                    baseScale: this.glowBaseScale * 0.95,
+                    coreScale: this.glowCoreScale * 0.94,
+                };
+            case 1:
+                return {
+                    baseOpacity: 92,
+                    coreOpacity: 118,
+                    baseScale: this.glowBaseScale * 0.9,
+                    coreScale: this.glowCoreScale * 0.88,
+                };
+            case 0:
+                return {
+                    baseOpacity: 0,
+                    coreOpacity: 0,
+                    baseScale: this.glowBaseScale * 0.84,
+                    coreScale: this.glowCoreScale * 0.82,
+                };
+            case 3:
+            default:
+                return {
+                    baseOpacity: 180,
+                    coreOpacity: 200,
+                    baseScale: this.glowBaseScale,
+                    coreScale: this.glowCoreScale,
+                };
+        }
+    }
 
     private getLevelProfile(level: 0 | 1 | 2 | 3): { scaleY: number; opacity: number; pulseAmplitude: number; fpsMultiplier: number } {
         switch (level) {
@@ -108,6 +173,8 @@ export class SaveTotoFireAnimation extends Component {
         this.opacity = this.node.getComponent(UIOpacity) || this.node.addComponent(UIOpacity);
         this.sprite = this.node.getComponent(Sprite) || null;
         this.fallbackSpriteFrame = this.sprite?.spriteFrame ?? null;
+        this.glowBaseOpacity = this.glowBaseNode?.getComponent(UIOpacity) || this.glowBaseNode?.addComponent(UIOpacity) || null;
+        this.glowCoreOpacity = this.glowCoreNode?.getComponent(UIOpacity) || this.glowCoreNode?.addComponent(UIOpacity) || null;
         // FIX: anchor снизу — чтобы scaleY опускал только верхнюю часть, низ неподвижен.
         const ut = this.node.getComponent('cc.UITransform') as any;
         if (ut) {
@@ -119,6 +186,7 @@ export class SaveTotoFireAnimation extends Component {
         }
         this.node.setScale(new Vec3(this.baseScaleX, this.maxScaleY, 1));
         this.opacity.opacity = this.maxOpacity;
+        this.applyGlowLevel(3);
         if (this.sprite && this.shouldUseSequenceFrames()) {
             this.sprite.spriteFrame = null;
         }
@@ -140,6 +208,7 @@ export class SaveTotoFireAnimation extends Component {
         const up = baseY * (1 + pulseAmplitude);
         const down = baseY * (1 - pulseAmplitude * 0.55);
         const baseOpacity = profile.opacity;
+        const glowProfile = this.getGlowProfile(this.level as 0 | 1 | 2 | 3);
 
         this.idleTween = tween(this.node)
             .to(this.idleHalfDurationSec, { scale: new Vec3(this.baseScaleX, up, 1) }, { easing: 'sineInOut' })
@@ -155,6 +224,25 @@ export class SaveTotoFireAnimation extends Component {
             .repeatForever()
             .start();
 
+        this.startGlowPulse(
+            this.glowBaseNode,
+            this.glowBaseOpacity,
+            glowProfile.baseScale,
+            this.glowBasePulseAmplitude,
+            this.glowBaseHalfDurationSec,
+            glowProfile.baseOpacity,
+            0.8,
+        );
+        this.startGlowPulse(
+            this.glowCoreNode,
+            this.glowCoreOpacity,
+            glowProfile.coreScale,
+            this.glowCorePulseAmplitude,
+            this.glowCoreHalfDurationSec,
+            glowProfile.coreOpacity,
+            0.74,
+        );
+
         this.idleTween.start();
     }
 
@@ -165,6 +253,55 @@ export class SaveTotoFireAnimation extends Component {
         }
         Tween.stopAllByTarget(this.node);
         if (this.opacity) Tween.stopAllByTarget(this.opacity);
+        if (this.glowBaseNode) Tween.stopAllByTarget(this.glowBaseNode);
+        if (this.glowCoreNode) Tween.stopAllByTarget(this.glowCoreNode);
+        if (this.glowBaseOpacity) Tween.stopAllByTarget(this.glowBaseOpacity);
+        if (this.glowCoreOpacity) Tween.stopAllByTarget(this.glowCoreOpacity);
+    }
+
+    private startGlowPulse(
+        glowNode: Node | null,
+        glowOpacity: UIOpacity | null,
+        baseScale: number,
+        amplitude: number,
+        halfDuration: number,
+        baseOpacity: number,
+        opacityFloorFactor: number,
+    ): void {
+        if (!glowNode || !glowOpacity) return;
+
+        const scaleUp = baseScale * (1 + amplitude);
+        const scaleDown = baseScale * (1 - amplitude * 0.72);
+
+        tween(glowNode)
+            .to(halfDuration, { scale: new Vec3(scaleUp, scaleUp, 1) }, { easing: 'sineInOut' })
+            .to(halfDuration, { scale: new Vec3(scaleDown, scaleDown, 1) }, { easing: 'sineInOut' })
+            .union()
+            .repeatForever()
+            .start();
+
+        tween(glowOpacity)
+            .to(halfDuration, { opacity: baseOpacity }, { easing: 'sineOut' })
+            .to(halfDuration, { opacity: Math.round(baseOpacity * opacityFloorFactor) }, { easing: 'sineIn' })
+            .union()
+            .repeatForever()
+            .start();
+    }
+
+    private applyGlowLevel(level: 0 | 1 | 2 | 3): void {
+        const glowProfile = this.getGlowProfile(level);
+        if (this.glowBaseNode) {
+            this.glowBaseNode.setScale(new Vec3(glowProfile.baseScale, glowProfile.baseScale, 1));
+        }
+        if (this.glowCoreNode) {
+            this.glowCoreNode.setScale(new Vec3(glowProfile.coreScale, glowProfile.coreScale, 1));
+        }
+        if (this.glowBaseOpacity) {
+            this.glowBaseOpacity.opacity = glowProfile.baseOpacity;
+        }
+        if (this.glowCoreOpacity) {
+            this.glowCoreOpacity.opacity = glowProfile.coreOpacity;
+        }
     }
 
     private shouldUseSequenceFrames(): boolean {
@@ -294,6 +431,7 @@ export class SaveTotoFireAnimation extends Component {
         if (!this.opacity) return;
         const targetY = this.levelTargetScaleY();
         const targetOpacity = this.levelTargetOpacity();
+        const glowProfile = this.getGlowProfile(level);
         this.stopIdlePulse();
         // OI-521: на level 0 sequence-frame advance не нужен — гасим update.
         this.enabled = level > 0;
@@ -307,6 +445,27 @@ export class SaveTotoFireAnimation extends Component {
                 if (level > 0 && !this.paused) this.startIdlePulse();
             })
             .start();
+
+        if (this.glowBaseNode) {
+            tween(this.glowBaseNode)
+                .to(this.levelTransitionSec, { scale: new Vec3(glowProfile.baseScale, glowProfile.baseScale, 1) }, { easing: 'sineInOut' })
+                .start();
+        }
+        if (this.glowCoreNode) {
+            tween(this.glowCoreNode)
+                .to(this.levelTransitionSec, { scale: new Vec3(glowProfile.coreScale, glowProfile.coreScale, 1) }, { easing: 'sineInOut' })
+                .start();
+        }
+        if (this.glowBaseOpacity) {
+            tween(this.glowBaseOpacity)
+                .to(this.levelTransitionSec, { opacity: glowProfile.baseOpacity }, { easing: 'sineInOut' })
+                .start();
+        }
+        if (this.glowCoreOpacity) {
+            tween(this.glowCoreOpacity)
+                .to(this.levelTransitionSec, { opacity: glowProfile.coreOpacity }, { easing: 'sineInOut' })
+                .start();
+        }
     }
 
     public pauseAnimation(): void {

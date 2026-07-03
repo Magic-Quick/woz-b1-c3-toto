@@ -37,6 +37,9 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     @property(Node)
     public lightFxNode: Node = null!;
 
+    @property([Node])
+    public fireFadeNodes: Node[] = [];
+
     /** Полный Тото (toto-full) — показывается после исчезновения клетки вместо assembled body+head+tongue. */
     @property(Node)
     public totoFullNode: Node | null = null;
@@ -163,7 +166,8 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.setFireLevel(0);
 
         // Скрываем основную композицию клетки синхронно, чтобы финальный fade не расползался.
-        const fadeTargets = [this.cageSwingRoot || this.cageRoot, this.fireNode].filter((node): node is Node => !!node && node.isValid);
+        const fireTargets = this.fireFadeNodes.length > 0 ? this.fireFadeNodes : [this.fireNode];
+        const fadeTargets = [this.cageSwingRoot || this.cageRoot, ...fireTargets].filter((node): node is Node => !!node && node.isValid);
         const duration = 0.4;
         if (fadeTargets.length === 0) {
             this.logger.info('playPackshotTransition done (no targets)');

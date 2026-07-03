@@ -6,13 +6,13 @@ const { ccclass } = _decorator;
 
 type SaveTotoAudioCueKey =
     | 'backgroundAmbience'
+    | 'happyMusic'
     | 'fireCrackle'
     | 'dogWhimper'
     | 'reelSpinLoop'
     | 'scatterBonusStinger'
     | 'basketOpen'
     | 'prizeChime'
-    | 'multiplierAccent'
     | 'keyTurnClick'
     | 'padlockSnap'
     | 'coinShower'
@@ -20,18 +20,33 @@ type SaveTotoAudioCueKey =
 
 const AUDIO_PATHS: Record<SaveTotoAudioCueKey, string> = {
     backgroundAmbience: 'save-toto/audio/sfx/background_ambience',
+    happyMusic: 'save-toto/audio/sfx/happy_music',
     fireCrackle: 'save-toto/audio/sfx/fire_crackle',
     dogWhimper: 'save-toto/audio/sfx/dog_whimper',
     reelSpinLoop: 'save-toto/audio/sfx/reel_spin_loop',
     scatterBonusStinger: 'save-toto/audio/sfx/scatter_bonus_stinger',
     basketOpen: 'save-toto/audio/sfx/basket_open',
     prizeChime: 'save-toto/audio/sfx/prize_chime',
-    multiplierAccent: 'save-toto/audio/sfx/unassigned_short_sfx_01',
     keyTurnClick: 'save-toto/audio/sfx/key_turn_click',
     padlockSnap: 'save-toto/audio/sfx/padlock_snap',
     coinShower: 'save-toto/audio/sfx/coin_shower',
     ctaJingle: 'save-toto/audio/sfx/cta_jingle',
 };
+
+const PRELOAD_AUDIO_KEYS: SaveTotoAudioCueKey[] = [
+    'backgroundAmbience',
+    'happyMusic',
+    'fireCrackle',
+    'dogWhimper',
+    'reelSpinLoop',
+    'scatterBonusStinger',
+    'basketOpen',
+    'prizeChime',
+    'keyTurnClick',
+    'padlockSnap',
+    'coinShower',
+    'ctaJingle',
+];
 
 @ccclass('SaveTotoAudioController')
 export class SaveTotoAudioController extends Component {
@@ -48,12 +63,14 @@ export class SaveTotoAudioController extends Component {
     private unlocked: boolean = false;
     private introRequested: boolean = false;
     private fireLoopRequested: boolean = false;
+    private whimperLoopRequested: boolean = false;
     private reelLoopRequested: boolean = false;
 
     public init(): void {
         this.ensureSources();
         this.audioAllowed = plbx.is_audio();
         this.muted = plbx.is_muted();
+        this.preloadAudio();
         plbx.on_mute_change((muted) => {
             this.muted = muted;
             if (muted) {
@@ -75,6 +92,7 @@ export class SaveTotoAudioController extends Component {
 
         if (this.introRequested) {
             void this.playOneShot('dogWhimper', 0.6);
+            this.startWhimperLoop();
             this.introRequested = false;
         }
     }
@@ -83,6 +101,22 @@ export class SaveTotoAudioController extends Component {
         this.introRequested = true;
         this.fireLoopRequested = true;
         void this.syncLoopState();
+    }
+
+    public stopBackgroundMusic(): void {
+        this.stopSource(this.musicSource);
+    }
+
+    public async playHappyMusic(): Promise<void> {
+        if (!this.musicSource?.isValid) return;
+        const clip = await this.loadClip('happyMusic');
+        if (!clip || !this.musicSource?.isValid || !this.canPlayNow()) return;
+
+        this.musicSource.stop();
+        this.musicSource.clip = clip;
+        this.musicSource.loop = true;
+        this.musicSource.volume = 0.24;
+        this.musicSource.play();
     }
 
     public playSpinLoop(): void {
@@ -112,10 +146,6 @@ export class SaveTotoAudioController extends Component {
         void this.playOneShot('prizeChime', 0.95);
     }
 
-    public playMultiplierAccent(): void {
-        void this.playOneShot('multiplierAccent', 0.95);
-    }
-
     public playUnlockSequence(): void {
         this.scheduleOneShot('keyTurnClick', 0.2, 0.9);
         this.scheduleOneShot('padlockSnap', 0.38, 0.95);
@@ -132,6 +162,7 @@ export class SaveTotoAudioController extends Component {
     public stopAll(): void {
         this.introRequested = false;
         this.fireLoopRequested = false;
+        this.whimperLoopRequested = false;
         this.reelLoopRequested = false;
         this.clearPendingTimers();
         this.stopAllPlayback();
@@ -239,6 +270,39 @@ export class SaveTotoAudioController extends Component {
     private clearPendingTimers(): void {
         this.pendingTimers.forEach((timer) => clearTimeout(timer));
         this.pendingTimers = [];
+    }
+
+    private startWhimperLoop(): void {
+        if (this.whimperLoopRequested) return;
+        this.whimperLoopRequested = true;
+        void this.scheduleNextWhimper();
+    }
+
+    private async scheduleNextWhimper(): Promise<void> {
+        if (!this.whimperLoopRequested || !this.audioAllowed) return;
+
+        const clip = await this.loadClip('dogWhimper');
+        const clipDuration = Math.max(0, clip?.duration ?? 8.2);
+        const delayMs = (clipDuration + 3) * 1000;
+
+        const timer = setTimeout(() => {
+            this.pendingTimers = this.pendingTimers.filter((item) => item !== timer);
+            if (!this.whimperLoopRequested) return;
+            void this.playOneShot('dogWhimper', 0.55);
+            void this.scheduleNextWhimper();
+        }, delayMs);
+
+        this.pendingTimers.push(timer);
+    }
+
+    private preloadAudio(): void {
+        PRELOAD_AUDIO_KEYS.forEach((key) => {
+            resources.preload(AUDIO_PATHS[key], AudioClip, (err) => {
+                if (err) {
+                    this.logger.warn(`Audio preload failed: ${key} (${AUDIO_PATHS[key]})`);
+                }
+            });
+        });
     }
 
     private stopAllPlayback(): void {

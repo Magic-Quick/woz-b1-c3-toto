@@ -435,7 +435,6 @@ export class SaveTotoStateMachine extends Component {
             }
             await this.slotView.addBalanceValue(reward.value);
         } else if (reward.kind === 1 /* SaveTotoRewardKind.MULTIPLIER */) {
-            this.audio?.playMultiplierAccent();
             await this.slotView.multiplyBalanceValue(reward.value);
         }
 
@@ -463,6 +462,7 @@ export class SaveTotoStateMachine extends Component {
         this.logger.info('enterPayout start');
         this.audio?.stopSpinLoop();
         this.audio?.stopThreatLoop();
+        this.audio?.stopBackgroundMusic();
         await this.bonusView.hideBaskets();
 
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
@@ -511,6 +511,7 @@ export class SaveTotoStateMachine extends Component {
         this.hudView.showCtaButton(false);
 
         await this.endCardView.show(finalWin);
+        void this.audio?.playHappyMusic();
         this.audio?.playCtaJingle();
 
         // Запустить ограниченный по времени фонтан монет за Тото (ПОСЛЕ show — EndCardLayer активен).

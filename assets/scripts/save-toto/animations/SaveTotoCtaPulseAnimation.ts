@@ -11,10 +11,10 @@ const { ccclass, property } = _decorator;
 @ccclass('SaveTotoCtaPulseAnimation')
 export class SaveTotoCtaPulseAnimation extends Component {
     @property({ type: CCFloat })
-    public scaleMultiplier: number = 0.08;
+    public scaleMultiplier: number = 0.1;
 
     @property({ type: CCFloat })
-    public halfDurationSec: number = 0.4;
+    public halfDurationSec: number = 0.3;
 
     private originalScale: Vec3 = new Vec3(1, 1, 1);
     private playing: boolean = false;

@@ -99,12 +99,11 @@ export class SaveTotoEndCardView extends Component {
         if (!this.endTotoRoot) return;
         this.stopTotoHappy();
         const base = this.endTotoRoot.scale.clone();
-        // Бесконечный happy bounce loop.
+        const pulseScale = base.clone().multiplyScalar(1.1);
+
         tween(this.endTotoRoot)
-            .to(0.25, { scale: new Vec3(base.x * 1.08, base.y * 1.08, 1) }, { easing: 'sineOut' })
-            .to(0.2, { scale: new Vec3(base.x * 0.98, base.y * 0.98, 1) }, { easing: 'sineIn' })
-            .to(0.22, { scale: new Vec3(base.x * 1.04, base.y * 1.04, 1) }, { easing: 'sineOut' })
-            .to(0.2, { scale: base }, { easing: 'sineInOut' })
+            .to(0.3, { scale: pulseScale }, { easing: 'sineInOut' })
+            .to(0.3, { scale: base }, { easing: 'sineInOut' })
             .union()
             .repeatForever()
             .start();

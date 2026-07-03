@@ -309,7 +309,7 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.Spinning;
         this.spinNumber += 1;
         this.logger.info(`enterSpinning #${this.spinNumber} bind SPIN_COMPLETE`);
-        this.hudView.showSpinButton(false);
+        this.hudView.setSpinButtonInteractable(false);
         this.spinsController.removeSpins(1);
         this.analytics.send({ name: SaveTotoEvents.EVT_SPIN_CLICK, payload: { tapIndex: this.spinNumber } });
         this.audio?.playSpinLoop();

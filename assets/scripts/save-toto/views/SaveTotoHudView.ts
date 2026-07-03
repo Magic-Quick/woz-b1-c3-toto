@@ -7,6 +7,7 @@
 
 import { _decorator, Component, Button, Node } from 'cc';
 import { SaveTotoHudView as ISaveTotoHudView } from '../interfaces/SaveTotoViews';
+import { SaveTotoAutoPulse } from '../animations/SaveTotoAutoPulse';
 
 const { ccclass, property } = _decorator;
 
@@ -34,7 +35,20 @@ export class SaveTotoHudView extends Component implements ISaveTotoHudView {
 
     public showSpinButton(active: boolean): void {
         if (this.spinButtonNode) this.spinButtonNode.active = active;
-        if (this.spinButton) this.spinButton.interactable = active;
+        this.setSpinButtonInteractable(active);
+    }
+
+    public setSpinButtonInteractable(interactable: boolean): void {
+        if (this.spinButton) this.spinButton.interactable = interactable;
+
+        const pulse = this.spinButtonNode?.getComponent(SaveTotoAutoPulse);
+        if (!pulse) return;
+
+        if (interactable) {
+            pulse.play();
+        } else {
+            pulse.stopAndReset();
+        }
     }
 
     public showCtaButton(active: boolean): void {

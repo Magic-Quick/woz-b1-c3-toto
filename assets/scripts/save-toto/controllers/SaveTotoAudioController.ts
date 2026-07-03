@@ -8,6 +8,7 @@ type SaveTotoAudioCueKey =
     | 'backgroundAmbience'
     | 'happyMusic'
     | 'fireCrackle'
+    | 'dogBarking'
     | 'dogWhimper'
     | 'reelSpinLoop'
     | 'scatterBonusStinger'
@@ -22,6 +23,7 @@ const AUDIO_PATHS: Record<SaveTotoAudioCueKey, string> = {
     backgroundAmbience: 'save-toto/audio/sfx/background_ambience',
     happyMusic: 'save-toto/audio/sfx/happy_music',
     fireCrackle: 'save-toto/audio/sfx/fire_crackle',
+    dogBarking: 'save-toto/audio/sfx/dog_barking',
     dogWhimper: 'save-toto/audio/sfx/dog_whimper',
     reelSpinLoop: 'save-toto/audio/sfx/reel_spin_loop',
     scatterBonusStinger: 'save-toto/audio/sfx/scatter_bonus_stinger',
@@ -37,6 +39,7 @@ const PRELOAD_AUDIO_KEYS: SaveTotoAudioCueKey[] = [
     'backgroundAmbience',
     'happyMusic',
     'fireCrackle',
+    'dogBarking',
     'dogWhimper',
     'reelSpinLoop',
     'scatterBonusStinger',
@@ -64,6 +67,7 @@ export class SaveTotoAudioController extends Component {
     private introRequested: boolean = false;
     private fireLoopRequested: boolean = false;
     private whimperLoopRequested: boolean = false;
+    private barkingLoopRequested: boolean = false;
     private reelLoopRequested: boolean = false;
 
     public init(): void {
@@ -107,6 +111,14 @@ export class SaveTotoAudioController extends Component {
         this.stopSource(this.musicSource);
     }
 
+    public stopWhimperLoop(): void {
+        this.whimperLoopRequested = false;
+    }
+
+    public stopBarkingLoop(): void {
+        this.barkingLoopRequested = false;
+    }
+
     public async playHappyMusic(): Promise<void> {
         if (!this.musicSource?.isValid) return;
         const clip = await this.loadClip('happyMusic');
@@ -117,6 +129,14 @@ export class SaveTotoAudioController extends Component {
         this.musicSource.loop = true;
         this.musicSource.volume = 0.24;
         this.musicSource.play();
+    }
+
+    public playDogBarking(): void {
+        this.stopWhimperLoop();
+        if (this.barkingLoopRequested) return;
+        this.barkingLoopRequested = true;
+        void this.playOneShot('dogBarking', 1.15);
+        void this.scheduleNextBarking();
     }
 
     public playSpinLoop(): void {
@@ -163,6 +183,7 @@ export class SaveTotoAudioController extends Component {
         this.introRequested = false;
         this.fireLoopRequested = false;
         this.whimperLoopRequested = false;
+        this.barkingLoopRequested = false;
         this.reelLoopRequested = false;
         this.clearPendingTimers();
         this.stopAllPlayback();
@@ -290,6 +311,23 @@ export class SaveTotoAudioController extends Component {
             if (!this.whimperLoopRequested) return;
             void this.playOneShot('dogWhimper', 0.55);
             void this.scheduleNextWhimper();
+        }, delayMs);
+
+        this.pendingTimers.push(timer);
+    }
+
+    private async scheduleNextBarking(): Promise<void> {
+        if (!this.barkingLoopRequested || !this.audioAllowed) return;
+
+        const clip = await this.loadClip('dogBarking');
+        const clipDuration = Math.max(0, clip?.duration ?? 1.12);
+        const delayMs = (clipDuration + 2) * 1000;
+
+        const timer = setTimeout(() => {
+            this.pendingTimers = this.pendingTimers.filter((item) => item !== timer);
+            if (!this.barkingLoopRequested) return;
+            void this.playOneShot('dogBarking', 1.15);
+            void this.scheduleNextBarking();
         }, delayMs);
 
         this.pendingTimers.push(timer);

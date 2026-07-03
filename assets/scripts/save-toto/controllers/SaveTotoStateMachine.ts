@@ -491,10 +491,11 @@ export class SaveTotoStateMachine extends Component {
         this.audio?.stopSpinLoop();
         this.audio?.stopThreatLoop();
         this.audio?.stopBackgroundMusic();
+        this.audio?.stopBarkingLoop();
         await this.bonusView.hideBaskets();
 
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
-        this.audio?.playCoinShower();
+        this.audio?.stopWhimperLoop();
 
         await Promise.all([
             this.threatView.playPackshotTransition(),
@@ -538,9 +539,11 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.EndCard;
         this.hudView.showCtaButton(false);
 
-        await this.endCardView.show(finalWin);
-        void this.audio?.playHappyMusic();
+        this.audio?.playDogBarking();
         this.audio?.playCtaJingle();
+        await this.endCardView.show(finalWin);
+        await this.audio?.playHappyMusic();
+        this.audio?.playCoinShower();
 
         // Запустить ограниченный по времени фонтан монет за Тото (ПОСЛЕ show — EndCardLayer активен).
         if (this.coinFountain) {

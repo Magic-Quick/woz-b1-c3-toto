@@ -5,7 +5,7 @@
  * Добавлены info-логи по цепочке spin -> bonus intro.
  */
 
-import { _decorator, Component, Button, tween, UIOpacity } from 'cc';
+import { _decorator, Component, Button, tween, UIOpacity, Node, Graphics, UITransform, Color } from 'cc';
 import { SaveTotoGameConfig, SaveTotoConfig } from '../config/SaveTotoGameConfig';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotView } from '../views/SaveTotoSlotView';
@@ -25,6 +25,7 @@ import { SaveTotoSlotEvents } from '../events/SaveTotoEvents';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 import { SaveTotoCoinAnimation } from '../animations/SaveTotoCoinAnimation';
 import { SaveTotoCoinFountain } from '../animations/SaveTotoCoinFountain';
+import { SaveTotoCircularLightAnimation } from '../animations/SaveTotoCircularLightAnimation';
 
 const { ccclass, property } = _decorator;
 
@@ -94,6 +95,7 @@ export class SaveTotoStateMachine extends Component {
     private spinNumber: number = 0;
     private readonly totalSpins: number = 4;
     private basketClickHandlers: Array<(() => void) | null> = [];
+    private introTutorialOverlay: Node | null = null;
 
     public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter): void {
         this.analytics = analytics;
@@ -136,7 +138,122 @@ export class SaveTotoStateMachine extends Component {
         this.hudView.showSpinButton(false);
         this.hudView.showCtaButton(false);
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_INTRO_SHOWN, payload: { state: 'Intro' } });
-        this.scheduleOnce(() => this.enterSpinReady(), this.config!.timing.introDurationSeconds);
+        void this.runIntroSequence();
+    }
+
+    private async runIntroSequence(): Promise<void> {
+        const introStart = Date.now();
+        await this.runIntroLockTutorial();
+
+        const remainingMs = Math.max(0, this.config!.timing.introDurationSeconds * 1000 - (Date.now() - introStart));
+        if (remainingMs > 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, remainingMs));
+        }
+
+        if (!this.node?.isValid || this.state !== SaveTotoState.Intro) {
+            return;
+        }
+
+        this.enterSpinReady();
+    }
+
+    private async runIntroLockTutorial(): Promise<void> {
+        const overlay = this.ensureIntroTutorialOverlay();
+        this.logger.info('runIntroLockTutorial start');
+
+        this.setIntroAmbientFxPaused(true);
+        if (overlay) {
+            this.threatView.beginTutorialPresentation(overlay);
+        }
+
+        try {
+            if (overlay) {
+                await this.fadeTutorialOverlay(overlay, true, 0.22);
+            }
+
+            await this.threatView.playLockTutorialHint();
+
+            if (overlay) {
+                await this.fadeTutorialOverlay(overlay, false, 0.2);
+            }
+        } finally {
+            this.threatView.endTutorialPresentation();
+            this.setIntroAmbientFxPaused(false);
+            this.logger.info('runIntroLockTutorial done');
+        }
+    }
+
+    private setIntroAmbientFxPaused(paused: boolean): void {
+        this.threatView.setTutorialFxPaused(paused);
+
+        const circularLights = this.slotView?.node?.getComponentsInChildren(SaveTotoCircularLightAnimation) ?? [];
+        circularLights.forEach((light) => {
+            if (paused) {
+                light.stop();
+            } else {
+                light.play();
+            }
+        });
+
+        this.logger.info(`setIntroAmbientFxPaused paused=${paused} winLights=${circularLights.length}`);
+    }
+
+    private ensureIntroTutorialOverlay(): Node | null {
+        if (this.introTutorialOverlay?.isValid) {
+            return this.introTutorialOverlay;
+        }
+
+        const canvasNode = this.slotView?.node?.parent;
+        if (!canvasNode?.isValid) {
+            this.logger.warn('Diagnostic: cannot create intro tutorial overlay because canvas node is missing.');
+            return null;
+        }
+
+        const overlay = new Node('IntroTutorialOverlay');
+        canvasNode.addChild(overlay);
+        const targetIndex = Math.min(canvasNode.children.length - 1, this.slotView.node.getSiblingIndex() + 1);
+        overlay.setSiblingIndex(targetIndex);
+
+        const transform = overlay.addComponent(UITransform);
+        const canvasTransform = canvasNode.getComponent(UITransform);
+        const canvasSize = canvasTransform?.contentSize;
+        const width = canvasSize?.width ?? this.config!.canvas.width;
+        const height = canvasSize?.height ?? this.config!.canvas.height;
+        transform.setContentSize(width, height);
+        overlay.setPosition(0, 0, 0);
+
+        const graphics = overlay.addComponent(Graphics);
+        graphics.clear();
+        graphics.fillColor = new Color(0, 0, 0, 170);
+        graphics.rect(-width / 2, -height / 2, width, height);
+        graphics.fill();
+
+        const opacity = overlay.addComponent(UIOpacity);
+        opacity.opacity = 0;
+        overlay.active = false;
+
+        this.introTutorialOverlay = overlay;
+        return overlay;
+    }
+
+    private fadeTutorialOverlay(overlay: Node, visible: boolean, duration: number): Promise<void> {
+        const opacity = overlay.getComponent(UIOpacity) || overlay.addComponent(UIOpacity);
+        overlay.active = true;
+        if (visible) {
+            opacity.opacity = 0;
+        }
+
+        return new Promise<void>((resolve) => {
+            tween(opacity)
+                .to(duration, { opacity: visible ? 255 : 0 }, { easing: visible ? 'sineOut' : 'sineIn' })
+                .call(() => {
+                    if (!visible) {
+                        overlay.active = false;
+                    }
+                    resolve();
+                })
+                .start();
+        });
     }
 
     private enterSpinReady(): void {

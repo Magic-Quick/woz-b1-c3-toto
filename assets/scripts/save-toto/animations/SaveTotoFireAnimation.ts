@@ -68,6 +68,7 @@ export class SaveTotoFireAnimation extends Component {
     private sequenceReady = false;
     private sequenceFrameIndex = 0;
     private sequenceFrameTimer = 0;
+    private paused = false;
 
     private getLevelProfile(level: 0 | 1 | 2 | 3): { scaleY: number; opacity: number; pulseAmplitude: number; fpsMultiplier: number } {
         switch (level) {
@@ -126,6 +127,7 @@ export class SaveTotoFireAnimation extends Component {
     }
 
     update(dt: number): void {
+        if (this.paused) return;
         this.advanceSequence(dt);
     }
 
@@ -300,9 +302,23 @@ export class SaveTotoFireAnimation extends Component {
         tween(this.opacity)
             .to(this.levelTransitionSec, { opacity: targetOpacity }, { easing: 'sineInOut' })
             .call(() => {
-                if (level > 0) this.startIdlePulse();
+                if (level > 0 && !this.paused) this.startIdlePulse();
             })
             .start();
+    }
+
+    public pauseAnimation(): void {
+        if (this.paused) return;
+        this.paused = true;
+        this.stopIdlePulse();
+    }
+
+    public resumeAnimation(): void {
+        if (!this.paused) return;
+        this.paused = false;
+        if (this.level > 0) {
+            this.startIdlePulse();
+        }
     }
 
     /** Полностью потушить (packshot). */

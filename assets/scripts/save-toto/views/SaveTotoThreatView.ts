@@ -19,6 +19,8 @@ const { ccclass, property } = _decorator;
 @ccclass('SaveTotoThreatView')
 export class SaveTotoThreatView extends Component implements ISaveTotoThreatView {
     private logger = createSaveTotoLogger('SaveTotoThreatView');
+    private originalSiblingIndex: number | null = null;
+    private originalCageParent: Node | null = null;
 
     @property(Node)
     public fireNode: Node = null!;
@@ -63,6 +65,68 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     public getFireLevel(): SaveTotoFireLevel {
         return this.currentFireLevel;
+    }
+
+    public setTutorialFxPaused(paused: boolean): void {
+        if (!this.fireAnim) return;
+        if (paused) {
+            this.fireAnim.pauseAnimation();
+        } else {
+            this.fireAnim.resumeAnimation();
+        }
+    }
+
+    public beginTutorialPresentation(overlayNode: Node): void {
+        const overlayParent = overlayNode?.parent;
+        if (!overlayNode || !overlayParent || !this.cageRoot?.isValid) {
+            this.logger.warn('Diagnostic: unable to raise CageRoot for tutorial presentation.');
+            return;
+        }
+
+        if (this.originalSiblingIndex === null) {
+            this.originalSiblingIndex = this.cageRoot.getSiblingIndex();
+            this.originalCageParent = this.cageRoot.parent;
+        }
+
+        const cageWorldPosition = this.cageRoot.worldPosition.clone();
+        overlayParent.addChild(this.cageRoot);
+        this.cageRoot.setWorldPosition(cageWorldPosition);
+
+        const targetIndex = Math.min(overlayParent.children.length - 1, overlayNode.getSiblingIndex() + 1);
+        this.cageRoot.setSiblingIndex(targetIndex);
+        this.logger.info(`beginTutorialPresentation siblingIndex=${targetIndex}`);
+    }
+
+    public endTutorialPresentation(): void {
+        if (this.originalSiblingIndex === null || !this.cageRoot?.isValid || !this.originalCageParent?.isValid) {
+            return;
+        }
+
+        const cageWorldPosition = this.cageRoot.worldPosition.clone();
+        this.originalCageParent.addChild(this.cageRoot);
+        this.cageRoot.setWorldPosition(cageWorldPosition);
+        this.cageRoot.setSiblingIndex(this.originalSiblingIndex);
+        this.logger.info(`endTutorialPresentation siblingIndex=${this.originalSiblingIndex}`);
+        this.originalSiblingIndex = null;
+        this.originalCageParent = null;
+    }
+
+    public async playLockTutorialHint(): Promise<void> {
+        const locks = this.lockViews.filter((view) => !!view && view.node?.isValid);
+        if (locks.length === 0) {
+            this.logger.warn('Diagnostic: no lockViews available for tutorial hint.');
+            return;
+        }
+
+        this.logger.info('playLockTutorialHint start');
+
+        for (const lockView of locks) {
+            await lockView.playTutorialHighlight();
+            await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        }
+
+        await Promise.all(locks.map((lockView) => lockView.playTutorialHighlight()));
+        this.logger.info('playLockTutorialHint done');
     }
 
     public async removeLock(index: number): Promise<void> {

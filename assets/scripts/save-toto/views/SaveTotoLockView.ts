@@ -7,7 +7,7 @@
  * По возможности делегирует SaveTotoLockOpenRemoveAnimation; при его отсутствии
  * использует tween fallback.
  */
-import { _decorator, Component, Node, Sprite, SpriteFrame, tween, Vec3, UIOpacity } from 'cc';
+import { _decorator, Component, Node, Sprite, SpriteFrame, tween, Vec3, UIOpacity, UITransform, Tween, Color } from 'cc';
 import { SaveTotoLockId } from '../types';
 import { SaveTotoLockViewLike } from '../controllers/SaveTotoLockUnlockController';
 import { SaveTotoLockOpenRemoveAnimation } from '../animations/SaveTotoLockOpenRemoveAnimation';
@@ -36,6 +36,10 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
     public mirror: boolean = false;
 
     private originalScale: Vec3 = new Vec3(1, 1, 1);
+    private tutorialHighlightNode: Node | null = null;
+    private tutorialHighlightOpacity: UIOpacity | null = null;
+    private tutorialHighlightBaseScale: Vec3 = new Vec3(1, 1, 1);
+    private readonly tutorialHighlightColor = new Color(255, 247, 220, 255);
 
     onLoad(): void {
         this.originalScale = this.node.scale.clone();
@@ -44,6 +48,7 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
             this.originalScale.x = -Math.abs(this.originalScale.x);
             this.node.setScale(this.originalScale);
         }
+        this.ensureTutorialHighlight();
     }
 
     public async playOpenAndRemove(): Promise<void> {
@@ -59,6 +64,8 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
     public async playUnlockFrom(keyFromWorldPos: Vec3): Promise<void> {
         const node = this.node;
         if (!node || !node.isValid) return;
+
+        this.resetTutorialHighlight();
 
         // 1. Spawn ключ и летит к замку.
         if (this.keySpriteFrame && this.keyFlightRoot) {
@@ -76,6 +83,43 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
                 })
                 .to(0.18, { scale: this.originalScale }, { easing: 'backOut' })
                 .call(() => resolve())
+                .start();
+        });
+    }
+
+    public async playTutorialHighlight(delaySeconds: number = 0): Promise<void> {
+        const highlightNode = this.ensureTutorialHighlight();
+        if (!highlightNode || !this.tutorialHighlightOpacity) return;
+
+        this.resetTutorialHighlight();
+
+        if (delaySeconds > 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, delaySeconds * 1000));
+        }
+
+        if (!this.node?.isValid || !highlightNode.isValid || !this.tutorialHighlightOpacity.isValid) return;
+
+        const sx = this.originalScale.x;
+        const emphasizedScale = new Vec3(sx < 0 ? -1.05 : 1.05, 1.05, 1.05);
+
+        return new Promise<void>((resolve) => {
+            tween(this.tutorialHighlightOpacity!)
+                .to(0.18, { opacity: 185 }, { easing: 'sineOut' })
+                .delay(0.12)
+                .to(0.22, { opacity: 0 }, { easing: 'sineIn' })
+                .call(() => resolve())
+                .start();
+
+            tween(highlightNode)
+                .to(0.18, { scale: new Vec3(1.1, 1.1, 1) }, { easing: 'sineOut' })
+                .delay(0.12)
+                .to(0.22, { scale: this.tutorialHighlightBaseScale.clone() }, { easing: 'sineInOut' })
+                .start();
+
+            tween(this.node)
+                .to(0.18, { scale: emphasizedScale }, { easing: 'sineOut' })
+                .delay(0.12)
+                .to(0.22, { scale: this.originalScale.clone() }, { easing: 'sineInOut' })
                 .start();
         });
     }
@@ -127,6 +171,56 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
         if (sprite) {
             sprite.spriteFrame = this.openLockSpriteFrame;
             sprite.sizeMode = Sprite.SizeMode.TRIMMED;
+        }
+    }
+
+    private ensureTutorialHighlight(): Node | null {
+        if (this.tutorialHighlightNode && this.tutorialHighlightNode.isValid) {
+            return this.tutorialHighlightNode;
+        }
+
+        const sourceSprite = this.node.getComponent(Sprite);
+        const sourceTransform = this.node.getComponent(UITransform);
+        if (!sourceSprite || !sourceTransform) {
+            return null;
+        }
+
+        const highlightNode = new Node('TutorialHighlight');
+        highlightNode.layer = this.node.layer;
+        this.node.addChild(highlightNode);
+        highlightNode.setPosition(0, 0, 0);
+        highlightNode.setScale(this.tutorialHighlightBaseScale);
+        highlightNode.setSiblingIndex(this.node.children.length - 1);
+
+        const highlightTransform = highlightNode.addComponent(UITransform);
+        highlightTransform.setContentSize(sourceTransform.contentSize);
+
+        const highlightSprite = highlightNode.addComponent(Sprite);
+        highlightSprite.spriteFrame = sourceSprite.spriteFrame;
+        highlightSprite.sizeMode = sourceSprite.sizeMode;
+        highlightSprite.type = sourceSprite.type;
+        highlightSprite.color = this.tutorialHighlightColor;
+
+        const highlightOpacity = highlightNode.addComponent(UIOpacity);
+        highlightOpacity.opacity = 0;
+
+        this.tutorialHighlightNode = highlightNode;
+        this.tutorialHighlightOpacity = highlightOpacity;
+        return highlightNode;
+    }
+
+    private resetTutorialHighlight(): void {
+        if (this.tutorialHighlightNode?.isValid) {
+            Tween.stopAllByTarget(this.tutorialHighlightNode);
+            this.tutorialHighlightNode.setScale(this.tutorialHighlightBaseScale.clone());
+        }
+        if (this.tutorialHighlightOpacity?.isValid) {
+            Tween.stopAllByTarget(this.tutorialHighlightOpacity);
+            this.tutorialHighlightOpacity.opacity = 0;
+        }
+        if (this.node?.isValid) {
+            Tween.stopAllByTarget(this.node);
+            this.node.setScale(this.originalScale.clone());
         }
     }
 }

@@ -8535,7 +8535,7 @@
         "__id__": 274
       }
     ],
-    "_active": false,
+    "_active": true,
     "_components": [
       {
         "__id__": 277
@@ -9622,8 +9622,8 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 900,
-      "height": 330
+      "width": 800,
+      "height": 300
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",

@@ -44,12 +44,20 @@ export class SaveTotoSlotColumn extends Component {
 
         this.elementSpawner.init(elementTypes, visibleConfig, this.totalElements, this.elementSpacing, this.startY, bonusElementTypes, columnIndex, totalColumns);
         this.columnMover.init(this.totalElements, this.visibleElements, this.elementSpacing, movementEffect);
+        // OI-521: колонка стартует неактивной в update-смысле; включаем в startColumnMovement.
+        this.enabled = false;
     }
 
     protected update(deltaTime: number): void {
-        if (this.columnMover) {
-            this.columnMover.update(deltaTime);
+        if (!this.columnMover) return;
+        // OI-521: если колонка не крутится — нет смысла дёргать columnMover.update
+        // каждый кадр (5 колонок × пустой вызов = стабильный оверхед на idle).
+        // Выключаем update; включаем обратно в startColumnMovement.
+        if (!this.columnMover.isCurrentlyMoving()) {
+            this.enabled = false;
+            return;
         }
+        this.columnMover.update(deltaTime);
     }
 
     protected onDestroy(): void {
@@ -59,6 +67,8 @@ export class SaveTotoSlotColumn extends Component {
     }
 
     public startColumnMovement(): void {
+        // OI-521: включаем update — колонка снова «живая».
+        this.enabled = true;
         this.columnMover?.startMovement();
     }
 

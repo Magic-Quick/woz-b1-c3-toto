@@ -98,6 +98,10 @@ export class SaveTotoStateMachine extends Component {
     private readonly totalSpins: number = 4;
     private basketClickHandlers: Array<(() => void) | null> = [];
     private introTutorialOverlay: Node | null = null;
+    // OI-520: кэш circular-light компонентов, чтобы не вызывать
+    // getComponentsInChildren (обход всего поддерева slotView) при каждой
+    // паузе/возобновлении intro-FX.
+    private cachedCircularLights: SaveTotoCircularLightAnimation[] = [];
 
     public init(analytics: SaveTotoAnalyticsAdapter, store: SaveTotoStoreAdapter, audio?: SaveTotoAudioController): void {
         this.analytics = analytics;
@@ -109,6 +113,9 @@ export class SaveTotoStateMachine extends Component {
             this.lockUnlockController.registerLockView(lockView.lockId, lockView);
         }
         this.spinsController.setSpins(this.totalSpins);
+        // OI-520: кэшируем circular-light компоненты один раз — избегаем
+        // getComponentsInChildren при каждом setIntroAmbientFxPaused.
+        this.cachedCircularLights = this.slotView?.node?.getComponentsInChildren(SaveTotoCircularLightAnimation) ?? [];
         // OI-511: Balance стартует с 0, наполняется по picks и простым выигрышам.
         this.slotView.setBalanceValue(0);
         this.spinNumber = 0;
@@ -138,6 +145,27 @@ export class SaveTotoStateMachine extends Component {
         return this.state;
     }
 
+    /**
+     * OI-519: задержка синхронная с Cocos timeScale/pause.
+     * Заменяет raw setTimeout в async-цепочках: твин на this.node автоматически
+     * останавливается при уничтожении ноды, не пишет в невалидное состояние.
+     * При невалидной ноде — мгновенный resolve (цепочка прервётся на ближайшем
+     * isValid-guard дальше).
+     */
+    private delaySeconds(seconds: number): Promise<void> {
+        if (!this.node?.isValid || seconds <= 0) {
+            return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            tween(this.node)
+                .delay(seconds)
+                .call(finish)
+                .start();
+        });
+    }
+
     private enterIntro(): void {
         this.state = SaveTotoState.Intro;
         this.threatView.setFireLevel(this.config!.threat.initialFireLevel);
@@ -153,7 +181,7 @@ export class SaveTotoStateMachine extends Component {
 
         const remainingMs = Math.max(0, this.config!.timing.introDurationSeconds * 1000 - (Date.now() - introStart));
         if (remainingMs > 0) {
-            await new Promise<void>((resolve) => setTimeout(resolve, remainingMs));
+            await this.delaySeconds(remainingMs / 1000);
         }
 
         if (!this.node?.isValid || this.state !== SaveTotoState.Intro) {
@@ -192,7 +220,7 @@ export class SaveTotoStateMachine extends Component {
     private setIntroAmbientFxPaused(paused: boolean): void {
         this.threatView.setTutorialFxPaused(paused);
 
-        const circularLights = this.slotView?.node?.getComponentsInChildren(SaveTotoCircularLightAnimation) ?? [];
+        const circularLights = this.cachedCircularLights;
         circularLights.forEach((light) => {
             if (paused) {
                 light.stop();
@@ -310,7 +338,7 @@ export class SaveTotoStateMachine extends Component {
                 this.enterBonusIntro();
             } else if (this.spinNumber === 3) {
                 // Spin 3: пусто, без пополнения и анимации выигрыша.
-                await new Promise<void>((resolve) => setTimeout(resolve, 600));
+                await this.delaySeconds(0.6);
                 this.enterSpinReady();
             } else {
                 // Простой выигрыш на spins 1-2: highlight + монеты + balance.
@@ -357,7 +385,7 @@ export class SaveTotoStateMachine extends Component {
         await this.slotView.addBalanceValue(winAmount);
 
         // Короткая пауза чтобы игрок увидел результат.
-        await new Promise<void>((resolve) => setTimeout(resolve, 400));
+        await this.delaySeconds(0.4);
     }
 
     private async enterBonusIntro(): Promise<void> {

@@ -132,9 +132,9 @@ date: '2026-06-29'
 | `OI-516` | Resolved | Packshot: клетка полностью исчезает (opacity→0, active=false), Тото остаётся непрозрачным + happy bounce. `EndCardView.show()` запускает бесконечный happy-анимацию на `EndTotoRoot` (body имеет вырезы под клетку — виден целиком). LightFx вспышка при переходе. |
 | `OI-517` | Resolved | WinPanel: добавлен `Light` child с `SaveTotoCircularLightAnimation` (бесконечное круговое вращение light.png позади панели). |
 | `OI-518` | Resolved | Basket glow усилен: двух-волна scale + долгий hold glow + масштаб glow (1.35×). Более сочная/интенсивная selection-анимация. |
-| `OI-519` | Open | Перевести raw `setTimeout` gameplay-задержки (state machine intro/spin-3/simple-win паузы, ThreatView lock-tutorial, LockView tutorial delay) на `scheduleOnce`/tween-delay с `node.isValid` guard. `setTimeout` не учитывает Cocos timeScale/pause и не отменяется при destroy. См. `DEBUG_AUDIT.md` DA-005. |
-| `OI-520` | Open | Заменить runtime `getChildByName`/`getComponentsInChildren` на `@property`/кэшированные ссылки: `StateMachine.setIntroAmbientFxPaused` (getComponentsInChildren circular lights), `SlotView.blinkScatter` (getChildByName 'Light'), `ThreatView.playPackshotTransition` (getChildByName 'CageSwingRoot'). См. `DEBUG_AUDIT.md` DA-006. |
-| `OI-521` | Open | Гасить `this.enabled` у `SaveTotoSlotColumn`/`SaveTotoFireAnimation` в idle для экономии пустых `update()` вызовов (5 колонок + fire каждый кадр). См. `DEBUG_AUDIT.md` DA-007. |
+| `OI-519` | Resolved | Перевести raw `setTimeout` gameplay-задержки (state machine intro/spin-3/simple-win паузы, ThreatView lock-tutorial, LockView tutorial delay) на tween-delay с `node.isValid` guard. Заменено на `delaySeconds()` helper (tween на `this.node`), синхронный с Cocos timeScale/pause, авто-отмена при уничтожении. См. `DEBUG_AUDIT.md` DA-005. |
+| `OI-520` | Resolved (partial) | Runtime `getChildByName`/`getComponentsInChildren` заменены на кэш: `StateMachine.cachedCircularLights` (init), `ThreatView.cageSwingRoot` (onLoad), `SlotView.scatterLightCache` (Map). Полный перенос на `@property` требует editor re-wiring — оставлено как кэш-on-load. См. `DEBUG_AUDIT.md` DA-006. |
+| `OI-521` | Resolved | Гасить `this.enabled` у `SaveTotoSlotColumn` (idle → false, `startColumnMovement` → true) и `SaveTotoFireAnimation` (level 0 / pause → false, resume/setLevel>0 → true). Убирает 6 пустых `update()` вызовов/кадр на idle. См. `DEBUG_AUDIT.md` DA-007. |
 
 ### 8.4. Замечание по сцене
 

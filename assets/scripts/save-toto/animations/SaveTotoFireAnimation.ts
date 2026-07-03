@@ -295,6 +295,8 @@ export class SaveTotoFireAnimation extends Component {
         const targetY = this.levelTargetScaleY();
         const targetOpacity = this.levelTargetOpacity();
         this.stopIdlePulse();
+        // OI-521: на level 0 sequence-frame advance не нужен — гасим update.
+        this.enabled = level > 0;
         // Плавный переход к новому уровню.
         tween(this.node)
             .to(this.levelTransitionSec, { scale: new Vec3(this.baseScaleX, targetY, 1) }, { easing: 'sineInOut' })
@@ -310,6 +312,8 @@ export class SaveTotoFireAnimation extends Component {
     public pauseAnimation(): void {
         if (this.paused) return;
         this.paused = true;
+        // OI-521: update не нужен пока анимация на паузе.
+        this.enabled = false;
         this.stopIdlePulse();
     }
 
@@ -317,6 +321,8 @@ export class SaveTotoFireAnimation extends Component {
         if (!this.paused) return;
         this.paused = false;
         if (this.level > 0) {
+            // OI-521: возобновляем update только если есть что анимировать.
+            this.enabled = true;
             this.startIdlePulse();
         }
     }

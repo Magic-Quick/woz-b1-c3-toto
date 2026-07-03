@@ -5,9 +5,8 @@
  * на CtaButton node; при его отсутствии используется tween fallback.
  */
 
-import { _decorator, Component, Button, Node, tween, Vec3 } from 'cc';
+import { _decorator, Component, Button, Node } from 'cc';
 import { SaveTotoHudView as ISaveTotoHudView } from '../interfaces/SaveTotoViews';
-import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
 
 const { ccclass, property } = _decorator;
 
@@ -26,7 +25,10 @@ export class SaveTotoHudView extends Component implements ISaveTotoHudView {
     public ctaButton: Button = null!;
 
     onLoad(): void {
-        this.showSpinButton(true);
+        // DA-010: стартуем SPIN скрытым — state machine покажет кнопку в
+        // enterSpinReady после intro. Раньше один кадр SPIN был виден/интерактивен
+        // до enterIntro (безопасно, но визуальный артефакт).
+        this.showSpinButton(false);
         this.showCtaButton(false);
     }
 
@@ -38,22 +40,5 @@ export class SaveTotoHudView extends Component implements ISaveTotoHudView {
     public showCtaButton(active: boolean): void {
         if (this.ctaButtonNode) this.ctaButtonNode.active = active;
         if (this.ctaButton) this.ctaButton.interactable = active;
-    }
-
-    public pulseCta(): void {
-        if (!this.ctaButtonNode) return;
-
-        const pulseComponent = this.ctaButtonNode.getComponent(SaveTotoCtaPulseAnimation);
-        if (pulseComponent) {
-            pulseComponent.play();
-            return;
-        }
-
-        tween(this.ctaButtonNode)
-            .to(0.4, { scale: new Vec3(1.08, 1.08, 1.08) }, { easing: 'sineInOut' })
-            .to(0.4, { scale: new Vec3(1, 1, 1) }, { easing: 'sineInOut' })
-            .union()
-            .repeatForever()
-            .start();
     }
 }

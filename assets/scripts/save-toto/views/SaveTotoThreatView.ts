@@ -43,10 +43,13 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     private currentFireLevel: SaveTotoFireLevel = 3;
     private fireAnim: SaveTotoFireAnimation | null = null;
+    // OI-520: кэш CageSwingRoot, чтобы не звать getChildByName при каждом packshot.
+    private cageSwingRoot: Node | null = null;
 
     onLoad(): void {
         if (this.lightFxNode) this.lightFxNode.active = false;
         this.fireAnim = this.fireNode?.getComponent(SaveTotoFireAnimation) || null;
+        this.cageSwingRoot = this.cageRoot?.getChildByName('CageSwingRoot') ?? null;
         if (this.fireAnim) {
             this.fireAnim.setLevel(3);
         } else {
@@ -65,6 +68,24 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     public getFireLevel(): SaveTotoFireLevel {
         return this.currentFireLevel;
+    }
+
+    /**
+     * OI-519: задержка синхронная с Cocos timeScale/pause (вместо raw setTimeout).
+     * Твин на this.node автоматически останавливается при уничтожении.
+     */
+    private delaySeconds(seconds: number): Promise<void> {
+        if (!this.node?.isValid || seconds <= 0) {
+            return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            tween(this.node)
+                .delay(seconds)
+                .call(finish)
+                .start();
+        });
     }
 
     public setTutorialFxPaused(paused: boolean): void {
@@ -122,7 +143,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
         for (const lockView of locks) {
             await lockView.playTutorialHighlight();
-            await new Promise<void>((resolve) => setTimeout(resolve, 500));
+            await this.delaySeconds(0.5);
         }
 
         await Promise.all(locks.map((lockView) => lockView.playTutorialHighlight()));
@@ -142,8 +163,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.setFireLevel(0);
 
         // Скрываем основную композицию клетки синхронно, чтобы финальный fade не расползался.
-        const cageSwing = this.cageRoot?.getChildByName('CageSwingRoot') ?? null;
-        const fadeTargets = [cageSwing || this.cageRoot, this.fireNode].filter((node): node is Node => !!node && node.isValid);
+        const fadeTargets = [this.cageSwingRoot || this.cageRoot, this.fireNode].filter((node): node is Node => !!node && node.isValid);
         const duration = 0.4;
         if (fadeTargets.length === 0) {
             this.logger.info('playPackshotTransition done (no targets)');

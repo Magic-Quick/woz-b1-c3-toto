@@ -94,7 +94,17 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
         this.resetTutorialHighlight();
 
         if (delaySeconds > 0) {
-            await new Promise<void>((resolve) => setTimeout(resolve, delaySeconds * 1000));
+            // OI-519: задержка синхронная с Cocos timeScale/pause.
+            if (this.node?.isValid) {
+                await new Promise<void>((resolve) => {
+                    let done = false;
+                    const finish = () => { if (!done) { done = true; resolve(); } };
+                    tween(this.node)
+                        .delay(delaySeconds)
+                        .call(finish)
+                        .start();
+                });
+            }
         }
 
         if (!this.node?.isValid || !highlightNode.isValid || !this.tutorialHighlightOpacity.isValid) return;

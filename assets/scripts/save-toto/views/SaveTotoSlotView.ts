@@ -35,8 +35,13 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
     private balanceTweenProxy: { value: number } = { value: 0 };
     private balanceTween: Tween<typeof this.balanceTweenProxy> | null = null;
 
+    // OI-520: кэш дочерних "Light" узлов scatter-элементов, чтобы не звать
+    // getChildByName('Light') при каждом highlight (элементы динамические).
+    private scatterLightCache: Map<Node, Node | null> = new Map();
+
     onDestroy(): void {
         this.stopBalanceTween();
+        this.scatterLightCache.clear();
     }
 
     public showIdleReel(_result: SaveTotoScriptedReelResult): void {
@@ -123,7 +128,12 @@ export class SaveTotoSlotView extends Component implements ISaveTotoSlotView {
             timer = setTimeout(finish, 2500);
 
             // Light-вспышка под символом: ищем дочерний "Light" узел (в Toto prefab).
-            const lightNode = node.getChildByName('Light');
+            // OI-520: кэшируем, чтобы не обходить детей при каждом blink.
+            let lightNode = this.scatterLightCache.get(node);
+            if (lightNode === undefined) {
+                lightNode = node.getChildByName('Light');
+                this.scatterLightCache.set(node, lightNode);
+            }
             if (lightNode) {
                 lightNode.active = true;
                 const lightOp = lightNode.getComponent(UIOpacity) || lightNode.addComponent(UIOpacity);

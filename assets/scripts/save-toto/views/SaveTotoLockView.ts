@@ -141,6 +141,7 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
             // Активируем root (иначе дочерние ноды не рендерятся).
             root.active = true;
             const keyNode = new Node('KeyFlight');
+            keyNode.layer = root.layer;
             root.addChild(keyNode);
             const sprite = keyNode.addComponent(Sprite);
             sprite.spriteFrame = this.keySpriteFrame!;

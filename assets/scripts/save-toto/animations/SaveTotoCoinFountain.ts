@@ -137,6 +137,7 @@ export class SaveTotoCoinFountain extends Component {
     private spawnCoin(): void {
         if (!this.coinSpriteFrame) return;
         const coinNode = new Node('FountainCoin');
+        coinNode.layer = this.node.layer;
         this.node.addChild(coinNode);
 
         const sprite = coinNode.addComponent(Sprite);

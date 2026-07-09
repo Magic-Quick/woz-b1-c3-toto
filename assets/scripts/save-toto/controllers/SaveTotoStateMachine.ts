@@ -5,7 +5,7 @@
  * Добавлены info-логи по цепочке spin -> bonus intro.
  */
 
-import { _decorator, Component, Button, tween, UIOpacity, Node, Graphics, UITransform, Color } from 'cc';
+import { _decorator, Component, Button, tween, UIOpacity, Node, Graphics, UITransform, Color, Sprite, SpriteFrame, Vec3, CCInteger, CCFloat } from 'cc';
 import { SaveTotoGameConfig, SaveTotoConfig } from '../config/SaveTotoGameConfig';
 import { SaveTotoSlotController, SaveTotoSpinCompletePayload } from '../Slot/SaveTotoSlotController';
 import { SaveTotoSlotView } from '../views/SaveTotoSlotView';
@@ -85,6 +85,24 @@ export class SaveTotoStateMachine extends Component {
 
     @property({ type: SaveTotoCoinFountain, tooltip: 'Фонтан монет в финале (опционально)' })
     public coinFountain: SaveTotoCoinFountain | null = null;
+
+    @property({ type: SpriteFrame, tooltip: 'Спрайт symbol-drop для полёта к огню' })
+    public dropSpriteFrame: SpriteFrame | null = null;
+
+    @property({ type: Node, tooltip: 'Узел-цель: центр огня' })
+    public fireTargetNode: Node | null = null;
+
+    @property({ type: Node, tooltip: 'Контейнер для спавна дропов (FxLayer)' })
+    public dropFxRoot: Node | null = null;
+
+    @property({ type: CCInteger, tooltip: 'Количество дропов к огню' })
+    public dropCount: number = 10;
+
+    @property({ type: CCFloat, tooltip: 'Размер спрайта дропа' })
+    public dropSize: number = 60;
+
+    @property({ type: CCFloat, tooltip: 'Длительность полёта дропа (сек)' })
+    public dropFlightDuration: number = 0.5;
 
     public lockUnlockController: SaveTotoLockUnlockController;
     public analytics: SaveTotoAnalyticsAdapter;
@@ -357,7 +375,7 @@ export class SaveTotoStateMachine extends Component {
         }
     }
 
-    /** Простой выигрыш между спинами: highlight выигрышных символов + монеты + balance. */
+    /** Простой выигрыш между спинами: highlight + монеты к balance + дропы к огню + снижение огня. */
     private async playSimpleWin(): Promise<void> {
         // Highlight выигрышных line-элементов (pulse + rotate + scale).
         try {
@@ -373,10 +391,11 @@ export class SaveTotoStateMachine extends Component {
         const winAmount = baseWins[(this.spinNumber - 1) % baseWins.length] || 50000;
         this.audio?.playPrizeChime();
 
+        const reelWorld = this.slotController.node.worldPosition;
+
         // Монеты к balance label (если coin animation привязан).
         try {
             if (this.coinAnimation) {
-                const reelWorld = this.slotController.node.worldPosition;
                 this.coinAnimation.play(reelWorld);
             }
         } catch (err) {
@@ -386,6 +405,13 @@ export class SaveTotoStateMachine extends Component {
         await this.slotView.addBalanceValue(winAmount);
 
         if (this.spinNumber === 1) {
+            // 10 symbol-drop летят к огню, затем огонь уменьшается.
+            try {
+                await this.playDropToFire(reelWorld);
+            } catch (err) {
+                this.logger.warn(`playDropToFire failed: ${err}`);
+            }
+
             const reducedFireLevel: SaveTotoFireLevel = 3;
             this.threatView.setFireLevel(reducedFireLevel);
             this.analytics.send({ name: SaveTotoEvents.EVT_FIRE_LEVEL_CHANGED, payload: { fireLevel: reducedFireLevel, source: 'spin-1-oz-win' } });
@@ -393,6 +419,86 @@ export class SaveTotoStateMachine extends Component {
 
         // Короткая пауза чтобы игрок увидел результат.
         await this.delaySeconds(0.4);
+    }
+
+    /**
+     * Спавнит N symbol-drop спрайтов из источника к центру огня.
+     * Awaitable: резолвится когда все дропы достигли цели.
+     */
+    private async playDropToFire(sourceWorldPos: Vec3): Promise<void> {
+        if (!this.dropSpriteFrame || !this.fireTargetNode || !this.dropFxRoot?.isValid) {
+            this.logger.warn('Diagnostic: dropSpriteFrame/fireTargetNode/dropFxRoot not bound. Skipping drop-to-fire.');
+            return;
+        }
+
+        this.dropFxRoot.active = true;
+        const targetWorld = this.fireTargetNode.worldPosition;
+        const count = Math.max(1, this.dropCount);
+        const promises: Promise<void>[] = [];
+
+        for (let i = 0; i < count; i++) {
+            promises.push(this.spawnDropDelayed(sourceWorldPos, targetWorld, i));
+        }
+
+        await Promise.all(promises);
+    }
+
+    private spawnDropDelayed(sourceWorld: Vec3, targetWorld: Vec3, index: number): Promise<void> {
+        return new Promise<void>((resolve) => {
+            this.scheduleOnce(() => {
+                if (!this.dropFxRoot?.isValid) { resolve(); return; }
+                this.spawnDrop(sourceWorld, targetWorld, resolve);
+            }, index * 0.05);
+        });
+    }
+
+    private spawnDrop(sourceWorld: Vec3, targetWorld: Vec3, onDone: () => void): void {
+        if (!this.dropFxRoot?.isValid || !this.dropSpriteFrame) { onDone(); return; }
+
+        const drop = new Node('DropToFire');
+        drop.layer = this.dropFxRoot.layer;
+        this.dropFxRoot.addChild(drop);
+
+        const sprite = drop.addComponent(Sprite);
+        sprite.spriteFrame = this.dropSpriteFrame;
+        sprite.sizeMode = Sprite.SizeMode.TRIMMED;
+        const ut = drop.getComponent('cc.UITransform') as any;
+        ut.setContentSize(this.dropSize, this.dropSize);
+
+        const op = drop.addComponent(UIOpacity);
+        op.opacity = 0;
+
+        // Случайный offset источника.
+        const ox = (Math.random() - 0.5) * 300;
+        const oy = (Math.random() - 0.5) * 150;
+        const srcWithOffset = new Vec3(sourceWorld.x + ox, sourceWorld.y + oy, sourceWorld.z);
+
+        // Локальные координаты относительно dropFxRoot.
+        const localFrom = this.dropFxRoot.inverseTransformPoint(new Vec3(), srcWithOffset);
+        const localTo = this.dropFxRoot.inverseTransformPoint(new Vec3(), targetWorld);
+
+        drop.setPosition(localFrom);
+
+        // Дуга: midpoint выше прямой.
+        const mid = new Vec3(
+            (localFrom.x + localTo.x) / 2,
+            (localFrom.y + localTo.y) / 2 + 60 + Math.random() * 30,
+            0
+        );
+
+        const duration = this.dropFlightDuration;
+
+        tween(drop)
+            .call(() => { op.opacity = 255; })
+            .to(duration * 0.5, { position: mid, scale: new Vec3(1.15, 1.15, 1) }, { easing: 'sineOut' })
+            .to(duration * 0.5, { position: localTo, scale: new Vec3(0.4, 0.4, 1) }, { easing: 'sineIn' })
+            .call(() => {
+                tween(op)
+                    .to(0.1, { opacity: 0 })
+                    .call(() => { drop.destroy(); onDone(); })
+                    .start();
+            })
+            .start();
     }
 
     private async enterBonusIntro(): Promise<void> {

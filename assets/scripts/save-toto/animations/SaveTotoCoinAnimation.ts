@@ -50,6 +50,7 @@ export class SaveTotoCoinAnimation extends Component {
 
     private spawnCoin(sourceWorld: Vec3, targetWorld: Vec3, index: number): void {
         const coin = new Node('Coin');
+        coin.layer = this.node.layer;
         this.node.addChild(coin);
 
         const sprite = coin.addComponent(Sprite);

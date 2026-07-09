@@ -3,10 +3,10 @@
  *
  * Огонь: делегирует SaveTotoFireAnimation.
  * Финальный payoff идёт staged-последовательностью:
- * 1) три открытых замка остаются видимыми,
- * 2) cage base меняется на cage-open,
- * 3) cage/locks исчезают, остаётся Toto full-body,
- * 4) threat-композиция уходит перед EndCard.
+ * 1) огонь гаснет + три открытых замка исчезают,
+ * 2) закрытая клетка меняется на открытую + Toto-body меняется на Toto-full-body,
+ * 3) открытая клетка исчезает — остаётся только собака,
+ * 4) собака + CageRoot уходят перед EndCard.
  */
 import { _decorator, Component, Node, tween, Tween, UIOpacity, Vec3 } from 'cc';
 import { SaveTotoThreatView as ISaveTotoThreatView } from '../interfaces/SaveTotoViews';
@@ -179,24 +179,31 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.logger.info('playPackshotTransition start');
         this.setFireLevel(0);
 
+        // Stage 1: Fire fades out + three open locks disappear.
         const fireTargets = this.fireFadeNodes.length > 0 ? this.fireFadeNodes : [this.fireNode];
         await Promise.all([
             this.fadeTargets(fireTargets, 0, 0.32, true),
+            this.fadeOutLocks(0.32),
             this.delaySeconds(0.18),
         ]);
 
+        // Stage 2: Cage swap (closed→open) + Toto swap (body→full-body).
         try {
-            await this.transitionToOpenCage();
+            await this.transitionCageAndTotoSwap();
         } catch (e) {
-            this.logger.warn(`transitionToOpenCage error: ${e}`);
+            this.logger.warn(`transitionCageAndTotoSwap error: ${e}`);
         }
         await this.delaySeconds(0.18);
+
+        // Stage 3: Open cage fades out — only the dog remains.
         try {
-            await this.transitionToFreedToto();
+            await this.fadeOutOpenCage();
         } catch (e) {
-            this.logger.warn(`transitionToFreedToto error: ${e}`);
+            this.logger.warn(`fadeOutOpenCage error: ${e}`);
         }
         await this.delaySeconds(0.24);
+
+        // Stage 4: Exit to final — dog + cage root fade out.
         try {
             await this.fadeThreatCompositionOut();
         } catch (e) {
@@ -207,7 +214,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     }
 
     public async playTotoFreed(): Promise<void> {
-        await this.transitionToFreedToto();
+        await this.transitionCageAndTotoSwap();
     }
 
     private rememberBaseScale(node: Node | null): void {
@@ -255,66 +262,85 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         }
     }
 
-    private async transitionToOpenCage(): Promise<void> {
-        if (!this.cageBaseNode || !this.cageOpenNode) {
-            this.logger.warn('Diagnostic: cageBaseNode/cageOpenNode missing. Skipping open-cage stage.');
-            return;
+    /** Stage 1: Fade out the three open locks. */
+    private async fadeOutLocks(duration: number): Promise<void> {
+        if (!this.locksRootNode) return;
+        const opacity = this.ensureOpacity(this.locksRootNode);
+        if (!opacity) return;
+        await this.tweenOpacity(opacity, 0, duration);
+        if (this.locksRootNode.isValid) {
+            this.locksRootNode.active = false;
         }
-
-        this.cageOpenNode.active = true;
-        this.cageOpenNode.setScale(this.scaled(this.cageOpenNode, 0.96));
-        const cageBaseOpacity = this.ensureOpacity(this.cageBaseNode);
-        const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);
-        if (!cageBaseOpacity || !cageOpenOpacity) {
-            return;
-        }
-        cageOpenOpacity.opacity = 0;
-
-        await Promise.all([
-            this.tweenOpacity(cageBaseOpacity, 0, 0.28),
-            this.tweenOpacity(cageOpenOpacity, 255, 0.28),
-            this.tweenScale(this.cageOpenNode, 1, 0.28),
-        ]);
-
-        this.cageBaseNode.active = false;
     }
 
-    private async transitionToFreedToto(): Promise<void> {
-        if (!this.totoFreedNode) {
-            this.logger.warn('Diagnostic: totoFreedNode missing. Skipping freed Toto stage.');
+    /**
+     * Stage 2: Swap closed cage → open cage, and toto-body → toto-full-body
+     * simultaneously. The old cage and old Toto fade out while the open cage
+     * and full-body Toto fade in.
+     */
+    private async transitionCageAndTotoSwap(): Promise<void> {
+        if (!this.cageBaseNode || !this.cageOpenNode || !this.totoFreedNode) {
+            this.logger.warn('Diagnostic: cageBaseNode/cageOpenNode/totoFreedNode missing. Skipping swap stage.');
             return;
         }
 
+        // Activate incoming nodes.
+        this.cageOpenNode.active = true;
+        this.cageOpenNode.setScale(this.scaled(this.cageOpenNode, 0.96));
         this.totoFreedNode.active = true;
         this.totoFreedNode.setScale(this.scaled(this.totoFreedNode, 0.94));
+
+        const cageBaseOpacity = this.ensureOpacity(this.cageBaseNode);
+        const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);
+        const totoRootOpacity = this.ensureOpacity(this.totoRoot);
         const totoFreedOpacity = this.ensureOpacity(this.totoFreedNode);
-        if (!totoFreedOpacity) {
+
+        if (!cageBaseOpacity || !cageOpenOpacity || !totoFreedOpacity) {
             return;
         }
+
+        // Incoming nodes start invisible.
+        cageOpenOpacity.opacity = 0;
         totoFreedOpacity.opacity = 0;
 
         const fades: Promise<void>[] = [
-            this.tweenOpacity(totoFreedOpacity, 255, 0.32),
-            this.tweenScale(this.totoFreedNode, 1, 0.32),
+            // Closed cage fades out.
+            this.tweenOpacity(cageBaseOpacity, 0, 0.28),
+            // Open cage fades in + scale reveal.
+            this.tweenOpacity(cageOpenOpacity, 255, 0.28),
+            this.tweenScale(this.cageOpenNode, 1, 0.28),
+            // Full-body Toto fades in + scale reveal.
+            this.tweenOpacity(totoFreedOpacity, 255, 0.28),
+            this.tweenScale(this.totoFreedNode, 1, 0.28),
         ];
 
-        const nodesToHide = [this.cageOpenNode, this.totoRoot, this.locksRootNode];
-        for (const node of nodesToHide) {
-            const opacity = this.ensureOpacity(node);
-            if (opacity) {
-                fades.push(this.tweenOpacity(opacity, 0, 0.32));
-            }
+        // Toto-body (with cutouts for cage bars) fades out.
+        if (totoRootOpacity) {
+            fades.push(this.tweenOpacity(totoRootOpacity, 0, 0.28));
         }
 
         await Promise.all(fades);
 
-        nodesToHide.forEach((node) => {
-            if (node?.isValid) {
-                node.active = false;
-            }
-        });
+        // Deactivate swapped-out nodes.
+        this.cageBaseNode.active = false;
+        if (this.totoRoot?.isValid) {
+            this.totoRoot.active = false;
+        }
     }
 
+    /** Stage 3: Open cage fades out — only the dog remains visible. */
+    private async fadeOutOpenCage(): Promise<void> {
+        if (!this.cageOpenNode) return;
+        const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);
+        if (cageOpenOpacity) {
+            await this.tweenOpacity(cageOpenOpacity, 0, 0.28);
+        }
+        if (this.cageOpenNode.isValid) {
+            this.cageOpenNode.active = false;
+        }
+    }
+
+    /** Stage 4: Dog + cage root fade out — exit to final. */
     private async fadeThreatCompositionOut(): Promise<void> {
         const fades: Promise<void>[] = [];
         const totoFreedOpacity = this.ensureOpacity(this.totoFreedNode);

@@ -44,7 +44,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     @property(Node)
     public totoFullNode: Node | null = null;
 
-    private currentFireLevel: SaveTotoFireLevel = 3;
+    private currentFireLevel: SaveTotoFireLevel = 4;
     private fireAnim: SaveTotoFireAnimation | null = null;
     // OI-520: кэш CageSwingRoot, чтобы не звать getChildByName при каждом packshot.
     private cageSwingRoot: Node | null = null;
@@ -54,7 +54,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.fireAnim = this.fireNode?.getComponent(SaveTotoFireAnimation) || null;
         this.cageSwingRoot = this.cageRoot?.getChildByName('CageSwingRoot') ?? null;
         if (this.fireAnim) {
-            this.fireAnim.setLevel(3);
+            this.fireAnim.setLevel(this.currentFireLevel);
         } else {
             this.logger.warn('Diagnostic: SaveTotoFireAnimation is missing on fireNode. Fire level changes will not animate.');
         }

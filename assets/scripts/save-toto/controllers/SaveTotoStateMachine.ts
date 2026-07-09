@@ -27,6 +27,7 @@ import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 import { SaveTotoCoinAnimation } from '../animations/SaveTotoCoinAnimation';
 import { SaveTotoCoinFountain } from '../animations/SaveTotoCoinFountain';
 import { SaveTotoCircularLightAnimation } from '../animations/SaveTotoCircularLightAnimation';
+import { SaveTotoFireLevel } from '../types';
 
 const { ccclass, property } = _decorator;
 
@@ -384,6 +385,12 @@ export class SaveTotoStateMachine extends Component {
 
         await this.slotView.addBalanceValue(winAmount);
 
+        if (this.spinNumber === 1) {
+            const reducedFireLevel: SaveTotoFireLevel = 3;
+            this.threatView.setFireLevel(reducedFireLevel);
+            this.analytics.send({ name: SaveTotoEvents.EVT_FIRE_LEVEL_CHANGED, payload: { fireLevel: reducedFireLevel, source: 'spin-1-oz-win' } });
+        }
+
         // Короткая пауза чтобы игрок увидел результат.
         await this.delaySeconds(0.4);
     }
@@ -471,8 +478,8 @@ export class SaveTotoStateMachine extends Component {
         const removedLock = await this.lockUnlockController.removeLockWithKey(pickIndex, basketAnchor.worldPosition);
         this.analytics.send({ name: SaveTotoEvents.EVT_LOCK_REMOVED, payload: { lockIndex: pickIndex, lockId: removedLock, locksRemaining: this.lockUnlockController.getRemainingLocks() } });
 
-        const newFireLevel = Math.max(0, 3 - (pickIndex + 1));
-        this.threatView.setFireLevel(newFireLevel as 0 | 1 | 2 | 3);
+        const newFireLevel = Math.max(0, 3 - (pickIndex + 1)) as SaveTotoFireLevel;
+        this.threatView.setFireLevel(newFireLevel);
         this.analytics.send({ name: SaveTotoEvents.EVT_FIRE_LEVEL_CHANGED, payload: { fireLevel: newFireLevel } });
 
         this.picksDone += 1;

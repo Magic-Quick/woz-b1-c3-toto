@@ -232,7 +232,7 @@ export class SaveTotoGameConfig extends Component {
             },
             threat: {
                 lockOrder: ['left', 'center', 'right'],
-                initialFireLevel: 3,
+                initialFireLevel: 4,
             },
             payout: {
                 startingBalance: this.startingBalance,

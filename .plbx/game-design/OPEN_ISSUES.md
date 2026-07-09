@@ -40,7 +40,7 @@ date: '2026-06-29'
 |---|---|---|---|---|
 | `OI-201` | Resolved | Scatter — корзина или Toto-symbol | Scatter будет символ Тото (`assets/art/slot/symbol-toto.png`). | Обновить symbol mapping: `totoId` = scatter id |
 | `OI-202` | Resolved | Порядок снятия замков | Слева направо. | `lockOrder = ['left','center','right']` |
-| `OI-203` | Resolved | Огонь: 4 отдельных уровня или scale/alpha | Реализовано через script-tween в `SaveTotoThreatView.setFireLevel()`: scale (0.4+t·0.6) + opacity tween (0 на level 0). Level 3→2→1→0 по pick'ам. `.anim` clip-версия — в OI-506b. |
+| `OI-203` | Resolved | Огонь: 4 отдельных уровня или scale/alpha | Реализовано editor-driven fire loop + runtime level transitions. Старт: `F4`. После первого spin-win (`Oz`) огонь снижается до `F3`. В bonus picks: `F3→F2→F1→F0`. Scale теперь сжимается и по X, и по Y; по Y — только сверху, нижняя кромка огня остаётся на месте. |
 | `OI-204` | Resolved | Должен ли balance меняться | Balance увеличивается; в панели есть место под цифры. `WIN` — фиксированный/статичный label. | `BalanceController` animates count; `WinPanel` не главный counter |
 | `OI-205` | Resolved | Tap anywhere на end-card или только CTA | Активна только CTA-кнопка. | Whole-screen redirect выключен |
 | `OI-206` | Resolved | Можно ли пропускать spin/bonus animations | Анимации не пропускаем. Кнопка `SPIN` появляется/активируется только после окончания intro-анимации. | Strict input lock per state |

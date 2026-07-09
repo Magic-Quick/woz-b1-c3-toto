@@ -58,5 +58,5 @@ export type SaveTotoScriptedReelResult = SaveTotoSymbolId[][];
 /** Порядок снятия замков (left → center → right). OI-202. */
 export type SaveTotoLockId = 'left' | 'center' | 'right';
 
-/** Уровень огня: F3 (максимум) → F0 (потух). GDD §10. */
-export type SaveTotoFireLevel = 0 | 1 | 2 | 3;
+/** Уровень огня: F4 (максимум) → F0 (потух). */
+export type SaveTotoFireLevel = 0 | 1 | 2 | 3 | 4;

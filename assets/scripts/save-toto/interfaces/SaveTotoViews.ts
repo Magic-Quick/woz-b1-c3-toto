@@ -23,7 +23,7 @@ import {
  * Клетка остаётся one-piece asset; door-swing отсутствует в MVP (OI-104).
  */
 export interface SaveTotoThreatView {
-    /** Установить уровень огня (3 — максимум, 0 — потух). */
+    /** Установить уровень огня (4 — максимум, 0 — потух). */
     setFireLevel(level: SaveTotoFireLevel): void;
 
     /** Снять один замок по индексу; возвращает Promise, резолвящийся по завершении анимации. */

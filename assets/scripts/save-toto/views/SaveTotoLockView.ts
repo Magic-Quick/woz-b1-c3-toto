@@ -58,9 +58,9 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
     }
 
     /**
-     * Unlock с key-flight из мировой позиции корзины.
-     * @param keyFromWorldPos мировая позиция корзины (откуда летит ключ)
-     */
+      * Unlock с key-flight из мировой позиции корзины.
+      * @param keyFromWorldPos мировая позиция корзины (откуда летит ключ)
+      */
     public async playUnlockFrom(keyFromWorldPos: Vec3): Promise<void> {
         const node = this.node;
         if (!node || !node.isValid) return;
@@ -72,16 +72,27 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
             await this.flyKey(keyFromWorldPos);
         }
 
-        // 2. Scale-up замка (вздрогнул) + swap на open-lock, open-lock остаётся.
+        // 2. Scale-up замка (вздрогнул от удара ключа) + swap на open-lock с
+        //    кратковременной вспышкой прозрачности для смягчения жёсткой смены
+        //    спрайта, затем возврат с backOut.
         // Preserve sign of x для mirror.
         const sx = this.originalScale.x;
+        const lockOpacity = node.getComponent(UIOpacity);
         await new Promise<void>((resolve) => {
             tween(node)
-                .to(0.12, { scale: new Vec3(sx < 0 ? -1.25 : 1.25, 1.25, 1.25) }, { easing: 'sineOut' })
+                .to(0.10, { scale: new Vec3(sx < 0 ? -1.20 : 1.20, 1.20, 1.20) }, { easing: 'sineOut' })
                 .call(() => {
                     this.swapToOpenLock();
+                    // Кратковременное падение прозрачности маскирует жёсткий swap спрайта.
+                    if (lockOpacity) {
+                        Tween.stopAllByTarget(lockOpacity);
+                        tween(lockOpacity)
+                            .to(0.04, { opacity: 200 })
+                            .to(0.18, { opacity: 255 }, { easing: 'sineOut' })
+                            .start();
+                    }
                 })
-                .to(0.18, { scale: this.originalScale }, { easing: 'backOut' })
+                .to(0.22, { scale: this.originalScale }, { easing: 'backOut' })
                 .call(() => resolve())
                 .start();
         });
@@ -158,8 +169,12 @@ export class SaveTotoLockView extends Component implements SaveTotoLockViewLike 
             const op = keyNode.addComponent(UIOpacity);
             op.opacity = 0;
 
+            // Quick fade-in for the key (softer than an instant opacity pop).
+            tween(op)
+                .to(0.06, { opacity: 255 }, { easing: 'sineOut' })
+                .start();
+
             tween(keyNode)
-                .call(() => { op.opacity = 255; })
                 .to(0.35, {
                     position: localTo,
                     scale: new Vec3(1.15, 1.15, 1.15),

@@ -591,8 +591,14 @@ export class SaveTotoStateMachine extends Component {
         this.picksDone += 1;
 
         if (this.picksDone < this.config!.bonus.requiredPicks) {
+            // Brief breath after lock removal so the player registers the unlock
+            // before baskets re-enable for the next pick.
+            await this.delaySeconds(0.35);
             this.enterBonusPick();
         } else {
+            // Pause to let the final lock removal and fire reduction sink in
+            // before the payoff sequence begins.
+            await this.delaySeconds(0.5);
             this.enterPayout();
         }
     }

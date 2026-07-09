@@ -2,9 +2,9 @@
 document_type: "qa_checklist"
 project_id: "WOZ_B1_C3_SaveToto"
 language: "ru"
-version: "1.1.0"
+version: "1.2.0"
 status: "script_tween_layer_done_anim_migration_pending"
-date: "2026-06-29"
+date: "2026-07-09"
 ---
 
 # QA checklist `Save Toto`
@@ -55,6 +55,15 @@ date: "2026-06-29"
 - [ ] После `cage-open` появляется `toto-full-body` без клетки.
 - [ ] Только после стадии `toto-full-body` происходит переход в финал / end-card.
 - [ ] Тото визуально освобождён/счастлив в payoff.
+- [ ] Cage anticipation: лёгкий tremble (squash/stretch) клетки перед открытием (~0.25s).
+- [ ] Fire + locks fade overlapped с cage swap (не sequential dead gaps); замки дрейфуют вверх при fade-out.
+- [ ] Cage swap: closed→open и toto-body→toto-full-body одновременно, с backOut scale pop (cage 0.88→1.0, Toto 0.82→1.0).
+- [ ] Toto joy bounce: hop вверх + scale pop + settle (freed-moment celebration, ~0.36s).
+- [ ] Open cage drifts upward + fades out (не просто исчезает).
+- [ ] Toto floats upward to freedom + fades out перед EndCard takeover.
+- [ ] Breath delays между picks: ~0.35s между picks, ~0.5s перед payout (не instant).
+- [ ] Lock swap softened: opacity dip (255→200→255) маскирует жёсткую смену спрайта при unlock.
+- [ ] Key flight: ключ fade-in (не instant pop), летит из позиции корзины к замку.
 
 ## 5. Payout и end-card
 

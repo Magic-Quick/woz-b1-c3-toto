@@ -2,9 +2,9 @@
 document_type: 'open_issues'
 project_id: 'WOZ_B1_C3_SaveToto'
 language: 'ru'
-version: '1.4.0'
+version: '1.4.1'
 status: 'visual_pass_done_pending_runtime_qa'
-date: '2026-06-29'
+date: '2026-07-09'
 ---
 
 # Пробелы логики и неуточнённые моменты `Save Toto`
@@ -129,7 +129,7 @@ date: '2026-06-29'
 | `OI-513` | Resolved | Scatter-highlight: 1× pulse → 3× scale blink + light-вспышка под Toto (`Light` child в Toto prefab, opacity blink 3 волны). |
 | `OI-514` | Resolved | Fire: был static на level-transition. Теперь `SaveTotoFireAnimation` — постоянный idle pulse (height + opacity flicker) + level transitions меняют только height (scale.y) и intensity (opacity), width неизменен. Level 0 = потух. |
 | `OI-515` | Resolved | Key flight: ключ (symbol-key SpriteFrame) вылетает из позиции корзины к замку, замок scale-up + swap на `open-lock.png` sprite, ключ исчезает. `SaveTotoLockView.playUnlockFrom(worldPos)`. Open-lock остаётся видимым. |
-| `OI-516` | Resolved | Packshot: клетка полностью исчезает (opacity→0, active=false), Тото остаётся непрозрачным + happy bounce. `EndCardView.show()` запускает бесконечный happy-анимацию на `EndTotoRoot` (body имеет вырезы под клетку — виден целиком). LightFx вспышка при переходе. |
+| `OI-516` | Resolved | Packshot (5-stage): `SaveTotoThreatView.playPackshotTransition()` — Stage 0: cage anticipation tremble (squash/stretch 0.25s); Stage 1+2 overlap: fire+locks fade (0.35s, sineIn, locks drift up +15) overlapped с cage swap (начинает через +0.12s); Stage 2: cage closed→open + toto-body→toto-full-body swap (backOut scale pop: cage 0.88→1.0 за 0.34s, Toto 0.82→1.0 за 0.38s); Stage 2.5: Toto joy bounce (hop y+18 + scale 1.08→1.0, backOut, 0.36s); Stage 3: open cage drift-up fade (y+25, scale 1.06, 0.32s sineIn); Stage 4: Toto float-away fade (y+55, scale 1.03, 0.4s sineIn) + cageRoot fade. `EndCardView.show()` запускает бесконечный happy-анимацию на `EndTotoRoot`. |
 | `OI-517` | Resolved | WinPanel: добавлен `Light` child с `SaveTotoCircularLightAnimation` (бесконечное круговое вращение light.png позади панели). |
 | `OI-518` | Resolved | Basket glow усилен: двух-волна scale + долгий hold glow + масштаб glow (1.35×). Более сочная/интенсивная selection-анимация. |
 | `OI-519` | Resolved | Перевести raw `setTimeout` gameplay-задержки (state machine intro/spin-3/simple-win паузы, ThreatView lock-tutorial, LockView tutorial delay) на tween-delay с `node.isValid` guard. Заменено на `delaySeconds()` helper (tween на `this.node`), синхронный с Cocos timeScale/pause, авто-отмена при уничтожении. См. `DEBUG_AUDIT.md` DA-005. |

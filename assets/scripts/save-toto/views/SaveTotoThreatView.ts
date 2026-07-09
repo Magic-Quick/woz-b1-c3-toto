@@ -8,7 +8,7 @@
  * 3) открытая клетка исчезает — остаётся только собака,
  * 4) собака + CageRoot уходят перед EndCard.
  */
-import { _decorator, Component, Node, tween, Tween, UIOpacity, Vec3 } from 'cc';
+import { _decorator, Component, Node, tween, Tween, UIOpacity, Vec3, TweenEasing } from 'cc';
 import { SaveTotoThreatView as ISaveTotoThreatView } from '../interfaces/SaveTotoViews';
 import { SaveTotoFireLevel } from '../types';
 import { SaveTotoLockView } from './SaveTotoLockView';
@@ -179,31 +179,43 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.logger.info('playPackshotTransition start');
         this.setFireLevel(0);
 
-        // Stage 1: Fire fades out + three open locks disappear.
+        // Stage 0: Cage anticipation — subtle tremble before the cage opens.
+        await this.playCageAnticipation();
+
+        // Stage 1+2 overlap: fire/locks fade while cage+toto swap begins.
         const fireTargets = this.fireFadeNodes.length > 0 ? this.fireFadeNodes : [this.fireNode];
-        await Promise.all([
-            this.fadeTargets(fireTargets, 0, 0.32, true),
-            this.fadeOutLocks(0.32),
-            this.delaySeconds(0.18),
+        const fireFadePromise = Promise.all([
+            this.fadeTargets(fireTargets, 0, 0.35, true),
+            this.fadeOutLocks(0.35),
         ]);
 
-        // Stage 2: Cage swap (closed→open) + Toto swap (body→full-body).
+        // Start cage swap shortly after fire begins fading (overlap, not dead gap).
+        await this.delaySeconds(0.12);
         try {
             await this.transitionCageAndTotoSwap();
         } catch (e) {
             this.logger.warn(`transitionCageAndTotoSwap error: ${e}`);
         }
-        await this.delaySeconds(0.18);
 
-        // Stage 3: Open cage fades out — only the dog remains.
+        // Ensure fire fade completed before continuing.
+        await fireFadePromise;
+
+        // Stage 2.5: Toto joy bounce — the "freed!" celebration moment.
+        try {
+            await this.playTotoJoyBounce();
+        } catch (e) {
+            this.logger.warn(`playTotoJoyBounce error: ${e}`);
+        }
+
+        // Stage 3: Open cage drifts upward and fades out — only the dog remains.
         try {
             await this.fadeOutOpenCage();
         } catch (e) {
             this.logger.warn(`fadeOutOpenCage error: ${e}`);
         }
-        await this.delaySeconds(0.24);
 
-        // Stage 4: Exit to final — dog + cage root fade out.
+        // Stage 4: Toto floats upward to freedom + cage root fades out.
+        await this.delaySeconds(0.1);
         try {
             await this.fadeThreatCompositionOut();
         } catch (e) {
@@ -215,6 +227,46 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     public async playTotoFreed(): Promise<void> {
         await this.transitionCageAndTotoSwap();
+    }
+
+    /**
+     * Stage 0: Subtle cage tremble — anticipation before the cage opens.
+     * A quick squash/stretch cycle that signals "something is about to happen".
+     */
+    private async playCageAnticipation(): Promise<void> {
+        if (!this.cageSwingRoot || !this.cageSwingRoot.isValid) return;
+        const base = this.scaled(this.cageSwingRoot, 1);
+        await new Promise<void>((resolve) => {
+            tween(this.cageSwingRoot)
+                .to(0.08, { scale: new Vec3(base.x * 1.015, base.y * 0.985, base.z) }, { easing: 'sineOut' })
+                .to(0.08, { scale: new Vec3(base.x * 0.99, base.y * 1.01, base.z) }, { easing: 'sineInOut' })
+                .to(0.09, { scale: base.clone() }, { easing: 'sineOut' })
+                .call(() => resolve())
+                .start();
+        });
+    }
+
+    /**
+     * Stage 2.5: Toto jumps for joy — a quick hop upward + scale pop, then
+     * settle back down. This is the "Toto is free!" celebration beat.
+     */
+    private async playTotoJoyBounce(): Promise<void> {
+        if (!this.totoFreedNode || !this.totoFreedNode.isValid) return;
+        const base = this.scaled(this.totoFreedNode, 1);
+        const basePos = this.totoFreedNode.position.clone();
+        await new Promise<void>((resolve) => {
+            tween(this.totoFreedNode)
+                .to(0.14, {
+                    scale: new Vec3(base.x * 1.08, base.y * 1.08, base.z),
+                    position: new Vec3(basePos.x, basePos.y + 18, basePos.z),
+                }, { easing: 'sineOut' })
+                .to(0.22, {
+                    scale: base.clone(),
+                    position: basePos.clone(),
+                }, { easing: 'backOut' })
+                .call(() => resolve())
+                .start();
+        });
     }
 
     private rememberBaseScale(node: Node | null): void {
@@ -247,8 +299,8 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.resetVisualNode(this.cageBaseNode, true, 255, 1);
         this.resetVisualNode(this.totoRoot, true, 255, 1);
         this.resetVisualNode(this.locksRootNode, true, 255, 1);
-        this.resetVisualNode(this.cageOpenNode, false, 0, 0.96);
-        this.resetVisualNode(this.totoFreedNode, false, 0, 0.94);
+        this.resetVisualNode(this.cageOpenNode, false, 0, 0.88);
+        this.resetVisualNode(this.totoFreedNode, false, 0, 0.82);
         this.resetVisualNode(this.lightFxNode, false, 0, 1);
     }
 
@@ -262,12 +314,16 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         }
     }
 
-    /** Stage 1: Fade out the three open locks. */
+    /** Stage 1: Fade out the three open locks with a gentle upward drift. */
     private async fadeOutLocks(duration: number): Promise<void> {
         if (!this.locksRootNode) return;
         const opacity = this.ensureOpacity(this.locksRootNode);
         if (!opacity) return;
-        await this.tweenOpacity(opacity, 0, duration);
+        const basePos = this.locksRootNode.position.clone();
+        await Promise.all([
+            this.tweenOpacity(opacity, 0, duration, 'sineIn'),
+            this.tweenPosition(this.locksRootNode, new Vec3(basePos.x, basePos.y + 15, basePos.z), duration, 'sineOut'),
+        ]);
         if (this.locksRootNode.isValid) {
             this.locksRootNode.active = false;
         }
@@ -276,7 +332,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     /**
      * Stage 2: Swap closed cage → open cage, and toto-body → toto-full-body
      * simultaneously. The old cage and old Toto fade out while the open cage
-     * and full-body Toto fade in.
+     * and full-body Toto fade in with a dramatic backOut scale pop.
      */
     private async transitionCageAndTotoSwap(): Promise<void> {
         if (!this.cageBaseNode || !this.cageOpenNode || !this.totoFreedNode) {
@@ -284,11 +340,11 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
             return;
         }
 
-        // Activate incoming nodes.
+        // Activate incoming nodes with lower start scale for dramatic reveal.
         this.cageOpenNode.active = true;
-        this.cageOpenNode.setScale(this.scaled(this.cageOpenNode, 0.96));
+        this.cageOpenNode.setScale(this.scaled(this.cageOpenNode, 0.88));
         this.totoFreedNode.active = true;
-        this.totoFreedNode.setScale(this.scaled(this.totoFreedNode, 0.94));
+        this.totoFreedNode.setScale(this.scaled(this.totoFreedNode, 0.82));
 
         const cageBaseOpacity = this.ensureOpacity(this.cageBaseNode);
         const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);
@@ -305,18 +361,19 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
         const fades: Promise<void>[] = [
             // Closed cage fades out.
-            this.tweenOpacity(cageBaseOpacity, 0, 0.28),
-            // Open cage fades in + scale reveal.
-            this.tweenOpacity(cageOpenOpacity, 255, 0.28),
-            this.tweenScale(this.cageOpenNode, 1, 0.28),
-            // Full-body Toto fades in + scale reveal.
-            this.tweenOpacity(totoFreedOpacity, 255, 0.28),
-            this.tweenScale(this.totoFreedNode, 1, 0.28),
+            this.tweenOpacity(cageBaseOpacity, 0, 0.32, 'sineOut'),
+            // Open cage fades in + scale pop with backOut overshoot.
+            this.tweenOpacity(cageOpenOpacity, 255, 0.32, 'sineOut'),
+            this.tweenScale(this.cageOpenNode, 1, 0.34, 'backOut'),
+            // Full-body Toto fades in + scale reveal with backOut (slightly longer
+            // for a staggered feel — cage pops first, Toto follows).
+            this.tweenOpacity(totoFreedOpacity, 255, 0.32, 'sineOut'),
+            this.tweenScale(this.totoFreedNode, 1, 0.38, 'backOut'),
         ];
 
         // Toto-body (with cutouts for cage bars) fades out.
         if (totoRootOpacity) {
-            fades.push(this.tweenOpacity(totoRootOpacity, 0, 0.28));
+            fades.push(this.tweenOpacity(totoRootOpacity, 0, 0.32, 'sineIn'));
         }
 
         await Promise.all(fades);
@@ -328,29 +385,45 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         }
     }
 
-    /** Stage 3: Open cage fades out — only the dog remains visible. */
+    /** Stage 3: Open cage drifts upward and fades out — only the dog remains. */
     private async fadeOutOpenCage(): Promise<void> {
         if (!this.cageOpenNode) return;
         const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);
+        const basePos = this.cageOpenNode.position.clone();
+        const promises: Promise<void>[] = [];
         if (cageOpenOpacity) {
-            await this.tweenOpacity(cageOpenOpacity, 0, 0.28);
+            promises.push(this.tweenOpacity(cageOpenOpacity, 0, 0.32, 'sineIn'));
         }
+        // Combine position + scale into ONE tween on the node. Calling
+        // tweenPosition + tweenScale separately would have the second call's
+        // Tween.stopAllByTarget(node) kill the first tween, hanging its promise.
+        promises.push(this.tweenNodeProps(this.cageOpenNode, {
+            position: new Vec3(basePos.x, basePos.y + 25, basePos.z),
+            scale: this.scaled(this.cageOpenNode, 1.06),
+        }, 0.32, 'sineOut'));
+        await Promise.all(promises);
         if (this.cageOpenNode.isValid) {
             this.cageOpenNode.active = false;
         }
     }
 
-    /** Stage 4: Dog + cage root fade out — exit to final. */
+    /** Stage 4: Dog floats upward to freedom + cage root fades out — exit to final. */
     private async fadeThreatCompositionOut(): Promise<void> {
         const fades: Promise<void>[] = [];
         const totoFreedOpacity = this.ensureOpacity(this.totoFreedNode);
         if (this.totoFreedNode && totoFreedOpacity) {
-            fades.push(this.tweenOpacity(totoFreedOpacity, 0, 0.28));
-            fades.push(this.tweenScale(this.totoFreedNode, 1.04, 0.28));
+            // Toto floats upward to "freedom" while fading — a gentle, hopeful exit.
+            const basePos = this.totoFreedNode.position.clone();
+            fades.push(this.tweenOpacity(totoFreedOpacity, 0, 0.4, 'sineIn'));
+            // Combine position + scale into ONE tween (see fadeOutOpenCage for why).
+            fades.push(this.tweenNodeProps(this.totoFreedNode, {
+                position: new Vec3(basePos.x, basePos.y + 55, basePos.z),
+                scale: this.scaled(this.totoFreedNode, 1.03),
+            }, 0.4, 'sineOut'));
         }
         const cageRootOpacity = this.ensureOpacity(this.cageRoot);
         if (cageRootOpacity) {
-            fades.push(this.tweenOpacity(cageRootOpacity, 0, 0.28));
+            fades.push(this.tweenOpacity(cageRootOpacity, 0, 0.4, 'sineIn'));
         }
 
         if (fades.length > 0) {
@@ -365,22 +438,50 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         }
     }
 
-    private tweenOpacity(opacity: UIOpacity, to: number, duration: number): Promise<void> {
+    private tweenOpacity(opacity: UIOpacity, to: number, duration: number, easing?: TweenEasing): Promise<void> {
         return new Promise<void>((resolve) => {
             Tween.stopAllByTarget(opacity);
             tween(opacity)
-                .to(duration, { opacity: to }, { easing: 'sineInOut' })
+                .to(duration, { opacity: to }, { easing: easing || 'sineInOut' })
                 .call(() => resolve())
                 .start();
         });
     }
 
-    private tweenScale(node: Node | null, factor: number, duration: number): Promise<void> {
+    private tweenScale(node: Node | null, factor: number, duration: number, easing?: TweenEasing): Promise<void> {
         if (!node || !node.isValid) return Promise.resolve();
         return new Promise<void>((resolve) => {
             Tween.stopAllByTarget(node);
             tween(node)
-                .to(duration, { scale: this.scaled(node, factor) }, { easing: 'sineInOut' })
+                .to(duration, { scale: this.scaled(node, factor) }, { easing: easing || 'sineInOut' })
+                .call(() => resolve())
+                .start();
+        });
+    }
+
+    private tweenPosition(node: Node | null, to: Vec3, duration: number, easing?: TweenEasing): Promise<void> {
+        if (!node || !node.isValid) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+            Tween.stopAllByTarget(node);
+            tween(node)
+                .to(duration, { position: to }, { easing: easing || 'sineInOut' })
+                .call(() => resolve())
+                .start();
+        });
+    }
+
+    /**
+     * Tween multiple node properties (position, scale, etc.) in ONE tween.
+     * Use this instead of separate tweenPosition + tweenScale calls on the
+     * SAME node — calling them separately causes the second call's
+     * Tween.stopAllByTarget(node) to kill the first tween, hanging its promise.
+     */
+    private tweenNodeProps(node: Node | null, props: { position?: Vec3; scale?: Vec3; [k: string]: any }, duration: number, easing?: TweenEasing): Promise<void> {
+        if (!node || !node.isValid) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+            Tween.stopAllByTarget(node);
+            tween(node)
+                .to(duration, props, { easing: easing || 'sineInOut' })
                 .call(() => resolve())
                 .start();
         });

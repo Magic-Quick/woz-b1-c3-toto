@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-07-09T09:42:00+02:00",
+  "projectId": "WOZ_B1_C3_SaveToto",
+  "targets": [
+    {
+      "id": "fire-loop",
+      "sourceGif": "assets/art/new/fire-full.gif",
+      "sourceExtractedFrames": "assets/art/new/frames/fire-full",
+      "sampledFrames": {
+        "dir": "assets/art/scene/fire-loop-sampled/frames",
+        "count": 18,
+        "pattern": "fire-loop_*.png",
+        "selectedSourceFrames": [1, 3, 5, 7, 9, 11, 13, 15, 17, 20, 22, 24, 26, 28, 30, 32, 34, 36],
+        "preview": "assets/art/scene/fire-loop-sampled/previews/fire-loop-contact.png"
+      },
+      "cocos": {
+        "recommendedAutoAtlasFolder": "assets/art/scene/fire-loop-sampled/frames",
+        "recommendedSpriteAtlasAsset": "assets/atlases/save-toto/threat/FireLoop.spriteatlas",
+        "recommendedAnimationClip": "assets/animations/save-toto/threat/fire_loop.anim",
+        "targetNode": "Canvas/ThreatLayer/FireRoot/FireSprite",
+        "property": "cc.Sprite.spriteFrame",
+        "sampleFps": 8,
+        "wrapMode": "Loop"
+      },
+      "notes": [
+        "Use this as the high-quality sampled loop for threat fire.",
+        "Recommended runtime layering: combine clip playback with scaleY/opacity fire-level transitions for F3/F2/F1/F0.",
+        "If bundle size is still too high, produce a second pass with 12 frames from this same source."
+      ]
+    },
+    {
+      "id": "happy-toto-loop",
+      "sourceGif": "assets/art/new/happy-toto.gif",
+      "sourceExtractedFrames": "assets/art/new/frames/happy-toto",
+      "sampledFrames": {
+        "dir": "assets/art/characters/happy-toto-loop-sampled/frames",
+        "count": 12,
+        "pattern": "happy-toto-loop_*.png",
+        "selectedSourceFrames": [1, 3, 5, 8, 10, 12, 14, 16, 18, 21, 23, 25],
+        "preview": "assets/art/characters/happy-toto-loop-sampled/previews/happy-toto-loop-contact.png"
+      },
+      "cocos": {
+        "recommendedAutoAtlasFolder": "assets/art/characters/happy-toto-loop-sampled/frames",
+        "recommendedSpriteAtlasAsset": "assets/atlases/save-toto/packshot/HappyTotoLoop.spriteatlas",
+        "recommendedAnimationClip": "assets/animations/save-toto/packshot/happy_toto_loop.anim",
+        "targetNode": "Canvas/EndCardLayer/EndTotoRoot",
+        "property": "cc.Sprite.spriteFrame",
+        "sampleFps": 10,
+        "wrapMode": "Loop"
+      },
+      "notes": [
+        "Use this only in packshot/end-card or Toto-freed moments, not in the main threat cage rig.",
+        "The sampled set stays close to the original 1.25s feel while cutting frame count roughly in half.",
+        "If editor memory is comfortable, a future polish pass can increase this to 14-16 frames."
+      ]
+    }
+  ]
+}

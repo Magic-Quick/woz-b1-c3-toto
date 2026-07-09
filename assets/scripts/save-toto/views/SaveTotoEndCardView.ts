@@ -1,11 +1,12 @@
 /**
  * Save Toto — view end-card слоя.
  *
- * Packshot: затемняющий overlay + logo + EndToto (полностью видимый, body имеет вырезы
- * под клетку — клетка уже исчезла в playPackshotTransition). Toto в happy-анимации.
+ * Packshot: затемняющий overlay + logo + EndToto container.
+ * Happy Toto проигрывается только через editor AnimationClip на отдельной ноде,
+ * без legacy tween-bounce в коде.
  * CTA pulse на PlayNowButton.
  */
-import { _decorator, Component, Node, Label, tween, Vec3, UIOpacity, Button, Tween } from 'cc';
+import { _decorator, Animation, Component, Node, Label, tween, UIOpacity, Button } from 'cc';
 import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
@@ -14,12 +15,16 @@ const { ccclass, property } = _decorator;
 @ccclass('SaveTotoEndCardView')
 export class SaveTotoEndCardView extends Component {
     private logger = createSaveTotoLogger('SaveTotoEndCardView');
+    private happyTotoAnimation: Animation | null = null;
 
     @property(Node)
     public root: Node = null!;
 
     @property(Node)
     public endTotoRoot: Node = null!;
+
+    @property(Node)
+    public happyTotoAnimatedNode: Node | null = null;
 
     @property(Label)
     public endWinLabel: Label | null = null;
@@ -31,6 +36,7 @@ export class SaveTotoEndCardView extends Component {
     public playNowButton: Button = null!;
 
     protected onLoad(): void {
+        this.happyTotoAnimation = this.happyTotoAnimatedNode?.getComponent(Animation) || null;
         this.validateBindings();
     }
 
@@ -59,7 +65,7 @@ export class SaveTotoEndCardView extends Component {
         const op = this.root.getComponent(UIOpacity) || this.root.addComponent(UIOpacity);
         op.opacity = 0;
 
-        // EndTotoRoot уже полностью виден (cage исчез в packshot). Запускаем happy bounce.
+        // EndTotoRoot уже полностью виден (cage исчез в packshot). Запускаем loop clip.
         this.playTotoHappy();
 
         return new Promise<void>((resolve) => {
@@ -92,26 +98,29 @@ export class SaveTotoEndCardView extends Component {
         if (this.endLegalLabel && !this.endLegalLabel.string.trim()) {
             this.logger.warn('Diagnostic: endLegalLabel is bound but empty.');
         }
+
+        if (this.happyTotoAnimatedNode && !this.happyTotoAnimation) {
+            this.logger.warn('Diagnostic: happyTotoAnimatedNode is bound but has no Animation component.');
+        }
     }
 
-    /** Happy-анимация Тото: ритмичный bounce на toto-full sprite. */
+    /** Happy-анимация Тото: editor-driven loop clip на HappyTotoAnimatedSprite. */
     private playTotoHappy(): void {
-        if (!this.endTotoRoot) return;
+        if (!this.happyTotoAnimatedNode || !this.happyTotoAnimation) return;
         this.stopTotoHappy();
-        const base = this.endTotoRoot.scale.clone();
-        const pulseScale = base.clone().multiplyScalar(1.1);
 
-        tween(this.endTotoRoot)
-            .to(0.3, { scale: pulseScale }, { easing: 'sineInOut' })
-            .to(0.3, { scale: base }, { easing: 'sineInOut' })
-            .union()
-            .repeatForever()
-            .start();
+        const clipName = this.happyTotoAnimation.defaultClip?.name ?? null;
+        if (!clipName) {
+            this.logger.warn('Diagnostic: happy Toto default clip is not assigned.');
+            return;
+        }
+
+        this.happyTotoAnimatedNode.active = true;
+        this.happyTotoAnimation.play(clipName);
     }
 
     private stopTotoHappy(): void {
-        if (!this.endTotoRoot) return;
-        Tween.stopAllByTarget(this.endTotoRoot);
+        this.happyTotoAnimation?.stop();
     }
 
     private playCtaPulse(): void {

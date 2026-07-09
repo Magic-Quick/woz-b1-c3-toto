@@ -542,6 +542,8 @@ export class SaveTotoStateMachine extends Component {
         this.unwireBasketInputs();
         if (this.ctaButton) {
             this.ctaButton.node.off(Button.EventType.CLICK, this.onCtaClick, this);
+            // DA-017: возвращаем в disabled-состояние для restart/teardown безопасности.
+            this.ctaButton.interactable = false;
         }
     }
 
@@ -672,6 +674,10 @@ export class SaveTotoStateMachine extends Component {
         if (this.ctaButton) {
             this.ctaButton.node.off(Button.EventType.CLICK, this.onCtaClick, this);
             this.ctaButton.node.on(Button.EventType.CLICK, this.onCtaClick, this);
+            // DA-017: PlayNowButton сериализован с _interactable=false в сцене.
+            // Без явного включения Button не эмитит CLICK — onCtaClick → store.redirect()
+            // никогда бы не сработал. Включаем здесь, после того как endcard показан.
+            this.ctaButton.interactable = true;
         }
     }
 

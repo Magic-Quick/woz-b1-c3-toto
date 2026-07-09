@@ -2,9 +2,9 @@
 document_type: 'debug_audit'
 project_id: 'WOZ_B1_C3_SaveToto'
 language: 'ru'
-version: '1.1.0'
-status: 'audit_pass_2_all_fixed'
-date: '2026-07-03'
+version: '1.2.0'
+status: 'audit_pass_3_da017_fixed'
+date: '2026-07-09'
 ---
 
 # Debug Audit — регрессии, bottleneck'ы и перфоманс
@@ -179,7 +179,109 @@ machine показывает кнопку в `enterSpinReady`.
 - `SaveTotoForcedSpawnManager`: cell-based rules применяются детерминированно;
   `breakUnwantedWinLines` имеет `maxIterations` guard (нет бесконечного цикла).
 
-## 5. Исправлено в этом проходе (сводка)
+## 6. Аудит-проход 3 — новые находки (DA-012…DA-017)
+
+Дата: 2026-07-09. Полное чтение исходников, инспекция сцены (scene serialization,
+node graph, component props), grep-трассировка CTA-flow.
+
+### DA-017 (C) — PlayNowButton `_interactable: false`: CTA redirect сломан
+
+**Файл:** `controllers/SaveTotoStateMachine.ts` (`enterEndCard`, `cleanupInputBindings`).
+**Сцена:** `Canvas/EndCardLayer/PlayNowButton #284` — Button `_interactable: false`.
+
+**Проблема:** Сцена сериализует `_interactable: false` на PlayNowButton (EndCardLayer).
+`enterEndCard()` вешает `ctaButton.node.on(Button.EventType.CLICK, this.onCtaClick, this)`,
+но **никогда не устанавливает `ctaButton.interactable = true`**. Cocos `Button` не эмитит
+`CLICK` при `interactable = false` (`_onTouchEnd` делает ранний return) → `onCtaClick`
+→ `store.redirect()` **никогда не вызывается**. Конверсионная воронка мертва.
+
+`HudView.ctaButton` — отдельная кнопка в HUD-слое (управляется `showCtaButton`), НЕ
+PlayNowButton из EndCardLayer. `enterEndCard` вызывает `hudView.showCtaButton(false)` —
+это скрывает HUD-кнопку, а не включает endcard-кнопку.
+
+**Фикс:** В `enterEndCard` после wiring click-handler добавлено `this.ctaButton.interactable = true`.
+В `cleanupInputBindings` добавлено `this.ctaButton.interactable = false` для
+restart/teardown-безопасности. Сценическое `_interactable: false` оставлено как
+разумный default (кнопка disabled до показа endcard).
+
+### DA-012 (M) — RewardController — мёртвый код
+
+**Файл:** `controllers/SaveTotoRewardController.ts`.
+
+**Проблема:** RewardController wired в сцене (StateMachine @property) и в Bootstrap
+(@property + `setDependencies`). `start()` подписывается на `WIN_DETECTED` →
+`onWinDetected` → `addReward(totalWinValue)`. Но:
+
+- StateMachine (690 строк) **ни разу** не ссылается на `this.rewardController`.
+- Endcard берёт финальный выигрыш из `slotView.getBalanceValue()` (line 623), не из
+  RewardController.
+- `showCTAScreen()`, `updateCTAScreen()`, `getCurrentReward()` — **никогда не вызываются**.
+- Накопленный `currentValue` уходит в чёрную дыру.
+- Двойная бухгалтерия: StateMachine ведёт баланс через `slotView.addBalanceValue`/
+  `multiplyBalanceValue` (basket picks), а RewardController отдельно аккумулирует
+  `WIN_DETECTED totalWinValue` (line wins из SlotController).
+
+**Статус:** Не критично (dead code не ломает flow), но:
+1. Двойная бухгалтерия confusing для следующих разработчиков.
+2. `onWinDetected` создаёт event-listener без видимого эффекта.
+3. Рекомендация: либо удалить RewardController, либо интегрировать в flow (заменить
+   `slotView.getBalanceValue()` на `rewardController.getCurrentReward()` и убрать
+   дублирующий `slotView.addBalanceValue`).
+
+### DA-013 (M) — CoinFountain `durationSeconds=30` в сцене, без pooling
+
+**Файл:** `animations/SaveTotoCoinFountain.ts`; сцена: `EndFountain` node.
+**Сериализация:** `durationSeconds=30` (не 2.8 default из кода).
+
+**Проблема:** При `spawnInterval=0.08`, `coinsPerBurst=3` → ~37.5 монет/сек × 30 сек
+= ~1125 монет за lifetime. Каждая монета: `new Node` + Sprite + UITransform + UIOpacity,
+без pooling. Steady-state: ~94 alive coins одновременно. GC-pressure от node
+creation/destruction во время endcard (conversion-critical moment).
+
+**Статус:** Не критично (DA-002 fix уже устранил per-coin RAF; физика теперь в
+`update(dt)` компонента), но:
+1. Node pooling убрал бы ~1125 alloc/destroy cycles.
+2. `durationSeconds=30` в сцене выглядит как editor-ошибка (default 2.8); стоит
+   уточнить намерение (длинный фонтан для endcard или случайно сохранённое значение?).
+
+### DA-014 (L) — SlotController нет `onDestroy`
+
+**Файл:** `Slot/SaveTotoSlotController.ts` (341 строка, полностью прочитан).
+
+**Проблема:** Нет `onDestroy`. 5 подписок `COLUMN_MOVEMENT_COMPLETE` на column nodes
+никогда не off'd. `centralizedSpawner` (SaveTotoCentralizedElementSpawner) не имеет
+destroy/cleanup метода.
+
+**Статус:** Низкий риск — Cocos scene teardown уничтожает ноды и GC'ит listeners.
+Но не чисто. Рекомендация: добавить `onDestroy()` с off для column listeners.
+
+### DA-015 (L) — `delaySeconds` promise hang on destroy
+
+**Файл:** `controllers/SaveTotoStateMachine.ts` (`delaySeconds`, line 174-186).
+
+**Проблема:** `tween(this.node).delay(seconds).call(finish).start()`. При уничтожении
+ноды Cocos авто-останавливает твин → `finish` не вызывается → Promise не resolves.
+Любой `await this.delaySeconds(...)` в async-методе, который in-flight при teardown,
+зависнет навсегда.
+
+**Статус:** Только при teardown — нет gameplay-воздействия. `isValid`-guards дальше
+в цепочке предотвращают крэши. Promise-leak минорный (ноды уже уничтожены).
+
+### DA-016 (L) — WinAnimationManager raw `setTimeout` not cleared on destroy
+
+**Файл:** `Slot/managers/SaveTotoWinAnimationManager.ts` (`scheduleAnimations`, line 62-75).
+
+**Проблема:** `setTimeout(() => { if (token !== this.scheduleToken) return;
+this.startAnimations(animations); }, globalDelay*1000)`. Token-guard покрывает
+`stopAllAnimations()` (DA-004 fix), но:
+1. `setTimeout` не очищается через `clearTimeout` при destroy.
+2. `WinAnimationManager` — plain-класс (не Component), нет lifecycle.
+3. При destroy сцены с pending setTimeout → `startAnimations` дернёт destroyed nodes.
+
+**Статус:** Dormant по default (`globalDelay=0.0` в `SaveTotoWinAnimationConfiguration`).
+Reachable только если editor ставит `globalDelay > 0`. Только при teardown.
+
+## 7. Исправлено в этом проходе (сводка)
 
 | ID | Файл | Изменение |
 |---|---|---|
@@ -193,10 +295,23 @@ machine показывает кнопку в `enterSpinReady`.
 | DA-008 | `views/SaveTotoSlotView.ts` | `clearTimeout` таймаут-защиты в `blinkScatter`/`pulseWinElement` после завершения твина |
 | DA-009 | `views/SaveTotoHudView.ts` | удалён мёртвый `pulseCta()` + неиспользуемые импорты |
 | DA-010 | `views/SaveTotoHudView.ts` | `onLoad` стартует SPIN скрытым (до `enterSpinReady`) |
+| DA-017 | `controllers/SaveTotoStateMachine.ts` | `ctaButton.interactable = true` в `enterEndCard`; `false` в `cleanupInputBindings` — CTA redirect восстановлен |
 
-## 6. Открытые задачи
+## 8. Открытые задачи
 
-Все находки DA-001…DA-011 закрыты. OI-519/520/521 отмечены как Resolved
+DA-001…DA-011, DA-017 закрыты. OI-519/520/521 отмечены как Resolved
 (520 — partial: кэш вместо `@property`; полный перенос требует editor re-wiring).
 
-Дальнейший QA — рантайм-проверка полного flow (OI-508) после reload сцены в Cocos.
+**Открыты (не критичны, рекомендуются для следующего спринта):**
+
+- **DA-012 (M):** RewardController — dead code. Решение: удалить или интегрировать в
+  flow (заменить `slotView.getBalanceValue()` на `rewardController.getCurrentReward()` и
+  убрать дублирующий `slotView.addBalanceValue`). Требует решения в `OPEN_ISSUES.md`.
+- **DA-013 (M):** CoinFountain `durationSeconds=30` — уточнить намерение (editor-ошибка
+  vs intentionally long). Добавить node-pooling если фонтан действительно 30 сек.
+- **DA-014 (L):** SlotController — добавить `onDestroy()` с off для column listeners.
+- **DA-015 (L):** `delaySeconds` — Promise hang при teardown. Минорный (ноды уничтожены).
+- **DA-016 (L):** WinAnimationManager — `clearTimeout` на destroy. Dormant по default.
+
+Дальнейший QA — рантайм-проверка полного flow (OI-508) после reload сцены в Cocos,
+особенно CTA-click → store redirect после DA-017 fix.

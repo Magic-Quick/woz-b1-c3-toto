@@ -1,17 +1,18 @@
 /**
- * Save Toto — view threat-слоя (implements SaveTotoThreatView).
+ * Save Toto — view threat-слоя.
  *
- * Огонь: делегирует SaveTotoFireAnimation (idle pulse + level-driven height/opacity).
- * Packshot transition: клетка полностью исчезает (opacity 0), Тото остаётся непрозрачным
- * и переходит в happy-анимацию. Packshot overlay добавляется отдельно (EndCardLayer).
+ * Огонь: делегирует SaveTotoFireAnimation.
+ * Финальный payoff идёт staged-последовательностью:
+ * 1) три открытых замка остаются видимыми,
+ * 2) cage base меняется на cage-open,
+ * 3) cage/locks исчезают, остаётся Toto full-body,
+ * 4) threat-композиция уходит перед EndCard.
  */
-import { _decorator, Component, Node, tween, Vec3, UIOpacity } from 'cc';
+import { _decorator, Component, Node, tween, Tween, UIOpacity, Vec3 } from 'cc';
 import { SaveTotoThreatView as ISaveTotoThreatView } from '../interfaces/SaveTotoViews';
 import { SaveTotoFireLevel } from '../types';
 import { SaveTotoLockView } from './SaveTotoLockView';
-import { SaveTotoPackshotIntroAnimation } from '../animations/SaveTotoPackshotIntroAnimation';
 import { SaveTotoFireAnimation } from '../animations/SaveTotoFireAnimation';
-import { SaveTotoAutoFloat } from '../animations/SaveTotoAutoFloat';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
 const { ccclass, property } = _decorator;
@@ -21,6 +22,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     private logger = createSaveTotoLogger('SaveTotoThreatView');
     private originalSiblingIndex: number | null = null;
     private originalCageParent: Node | null = null;
+    private readonly baseNodeScales = new Map<Node, Vec3>();
 
     @property(Node)
     public fireNode: Node = null!;
@@ -32,27 +34,45 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     public cageRoot: Node = null!;
 
     @property(Node)
+    public cageSwingRoot: Node | null = null;
+
+    @property(Node)
+    public cageBaseNode: Node | null = null;
+
+    @property(Node)
+    public cageOpenNode: Node | null = null;
+
+    @property(Node)
     public totoRoot: Node = null!;
 
     @property(Node)
-    public lightFxNode: Node = null!;
+    public totoFreedNode: Node | null = null;
+
+    @property(Node)
+    public locksRootNode: Node | null = null;
+
+    @property(Node)
+    public lightFxNode: Node | null = null;
 
     @property([Node])
     public fireFadeNodes: Node[] = [];
 
-    /** Полный Тото (toto-full) — показывается после исчезновения клетки вместо assembled body+head+tongue. */
-    @property(Node)
-    public totoFullNode: Node | null = null;
-
     private currentFireLevel: SaveTotoFireLevel = 4;
     private fireAnim: SaveTotoFireAnimation | null = null;
-    // OI-520: кэш CageSwingRoot, чтобы не звать getChildByName при каждом packshot.
-    private cageSwingRoot: Node | null = null;
 
     onLoad(): void {
-        if (this.lightFxNode) this.lightFxNode.active = false;
         this.fireAnim = this.fireNode?.getComponent(SaveTotoFireAnimation) || null;
-        this.cageSwingRoot = this.cageRoot?.getChildByName('CageSwingRoot') ?? null;
+        this.rememberBaseScale(this.cageRoot);
+        this.rememberBaseScale(this.cageSwingRoot);
+        this.rememberBaseScale(this.cageBaseNode);
+        this.rememberBaseScale(this.cageOpenNode);
+        this.rememberBaseScale(this.totoRoot);
+        this.rememberBaseScale(this.totoFreedNode);
+        this.rememberBaseScale(this.locksRootNode);
+        this.rememberBaseScale(this.lightFxNode);
+
+        this.initializePackshotNodes();
+
         if (this.fireAnim) {
             this.fireAnim.setLevel(this.currentFireLevel);
         } else {
@@ -73,10 +93,6 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         return this.currentFireLevel;
     }
 
-    /**
-     * OI-519: задержка синхронная с Cocos timeScale/pause (вместо raw setTimeout).
-     * Твин на this.node автоматически останавливается при уничтожении.
-     */
     private delaySeconds(seconds: number): Promise<void> {
         if (!this.node?.isValid || seconds <= 0) {
             return Promise.resolve();
@@ -161,40 +177,200 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     public async playPackshotTransition(): Promise<void> {
         this.logger.info('playPackshotTransition start');
-
-        // Огонь гаснет.
         this.setFireLevel(0);
 
-        // Скрываем основную композицию клетки синхронно, чтобы финальный fade не расползался.
         const fireTargets = this.fireFadeNodes.length > 0 ? this.fireFadeNodes : [this.fireNode];
-        const fadeTargets = [this.cageSwingRoot || this.cageRoot, ...fireTargets].filter((node): node is Node => !!node && node.isValid);
-        const duration = 0.4;
-        if (fadeTargets.length === 0) {
-            this.logger.info('playPackshotTransition done (no targets)');
-            return;
+        await Promise.all([
+            this.fadeTargets(fireTargets, 0, 0.32, true),
+            this.delaySeconds(0.18),
+        ]);
+
+        try {
+            await this.transitionToOpenCage();
+        } catch (e) {
+            this.logger.warn(`transitionToOpenCage error: ${e}`);
+        }
+        await this.delaySeconds(0.18);
+        try {
+            await this.transitionToFreedToto();
+        } catch (e) {
+            this.logger.warn(`transitionToFreedToto error: ${e}`);
+        }
+        await this.delaySeconds(0.24);
+        try {
+            await this.fadeThreatCompositionOut();
+        } catch (e) {
+            this.logger.warn(`fadeThreatCompositionOut error: ${e}`);
         }
 
-        await new Promise<void>((resolve) => {
-            let done = 0;
-            fadeTargets.forEach((target) => {
-                const op = target.getComponent(UIOpacity) || target.addComponent(UIOpacity);
-                tween(op)
-                    .to(duration, { opacity: 0 }, { easing: 'sineIn' })
-                    .call(() => {
-                        target.active = false;
-                        done += 1;
-                        if (done >= fadeTargets.length) {
-                            this.logger.info(`playPackshotTransition done. targets=${fadeTargets.length}`);
-                            resolve();
-                        }
-                    })
-                    .start();
-            });
-        });
+        this.logger.info('playPackshotTransition done');
     }
 
     public async playTotoFreed(): Promise<void> {
-        // No-op: Тото скрывается в packshot-переходе, happy-анимация показывается
-        // в финале через EndCardView (на toto-full sprite).
+        await this.transitionToFreedToto();
+    }
+
+    private rememberBaseScale(node: Node | null): void {
+        if (!node || !node.isValid || this.baseNodeScales.has(node)) return;
+        this.baseNodeScales.set(node, node.scale.clone());
+    }
+
+    private scaled(node: Node | null, factor: number = 1): Vec3 {
+        if (!node) {
+            return new Vec3(factor, factor, 1);
+        }
+        const base = this.baseNodeScales.get(node) || node.scale.clone();
+        return new Vec3(base.x * factor, base.y * factor, base.z);
+    }
+
+    private ensureOpacity(node: Node | null): UIOpacity | null {
+        if (!node || !node.isValid) return null;
+        const existing = node.getComponent(UIOpacity);
+        if (existing) return existing;
+        // Не добавляем UIOpacity на неактивные ноды — onEnable не вызовется,
+        // компонент останется незарегистрированным в render system.
+        // UIOpacity будет создан при активации ноды в transition-методах.
+        if (!node.active) return null;
+        return node.addComponent(UIOpacity);
+    }
+
+    private initializePackshotNodes(): void {
+        this.resetVisualNode(this.cageRoot, true, 255, 1);
+        this.resetVisualNode(this.cageSwingRoot, true, 255, 1);
+        this.resetVisualNode(this.cageBaseNode, true, 255, 1);
+        this.resetVisualNode(this.totoRoot, true, 255, 1);
+        this.resetVisualNode(this.locksRootNode, true, 255, 1);
+        this.resetVisualNode(this.cageOpenNode, false, 0, 0.96);
+        this.resetVisualNode(this.totoFreedNode, false, 0, 0.94);
+        this.resetVisualNode(this.lightFxNode, false, 0, 1);
+    }
+
+    private resetVisualNode(node: Node | null, active: boolean, opacity: number, scaleFactor: number): void {
+        if (!node || !node.isValid) return;
+        node.active = active;
+        node.setScale(this.scaled(node, scaleFactor));
+        const nodeOpacity = this.ensureOpacity(node);
+        if (nodeOpacity) {
+            nodeOpacity.opacity = opacity;
+        }
+    }
+
+    private async transitionToOpenCage(): Promise<void> {
+        if (!this.cageBaseNode || !this.cageOpenNode) {
+            this.logger.warn('Diagnostic: cageBaseNode/cageOpenNode missing. Skipping open-cage stage.');
+            return;
+        }
+
+        this.cageOpenNode.active = true;
+        this.cageOpenNode.setScale(this.scaled(this.cageOpenNode, 0.96));
+        const cageBaseOpacity = this.ensureOpacity(this.cageBaseNode);
+        const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);
+        if (!cageBaseOpacity || !cageOpenOpacity) {
+            return;
+        }
+        cageOpenOpacity.opacity = 0;
+
+        await Promise.all([
+            this.tweenOpacity(cageBaseOpacity, 0, 0.28),
+            this.tweenOpacity(cageOpenOpacity, 255, 0.28),
+            this.tweenScale(this.cageOpenNode, 1, 0.28),
+        ]);
+
+        this.cageBaseNode.active = false;
+    }
+
+    private async transitionToFreedToto(): Promise<void> {
+        if (!this.totoFreedNode) {
+            this.logger.warn('Diagnostic: totoFreedNode missing. Skipping freed Toto stage.');
+            return;
+        }
+
+        this.totoFreedNode.active = true;
+        this.totoFreedNode.setScale(this.scaled(this.totoFreedNode, 0.94));
+        const totoFreedOpacity = this.ensureOpacity(this.totoFreedNode);
+        if (!totoFreedOpacity) {
+            return;
+        }
+        totoFreedOpacity.opacity = 0;
+
+        const fades: Promise<void>[] = [
+            this.tweenOpacity(totoFreedOpacity, 255, 0.32),
+            this.tweenScale(this.totoFreedNode, 1, 0.32),
+        ];
+
+        const nodesToHide = [this.cageOpenNode, this.totoRoot, this.locksRootNode];
+        for (const node of nodesToHide) {
+            const opacity = this.ensureOpacity(node);
+            if (opacity) {
+                fades.push(this.tweenOpacity(opacity, 0, 0.32));
+            }
+        }
+
+        await Promise.all(fades);
+
+        nodesToHide.forEach((node) => {
+            if (node?.isValid) {
+                node.active = false;
+            }
+        });
+    }
+
+    private async fadeThreatCompositionOut(): Promise<void> {
+        const fades: Promise<void>[] = [];
+        const totoFreedOpacity = this.ensureOpacity(this.totoFreedNode);
+        if (this.totoFreedNode && totoFreedOpacity) {
+            fades.push(this.tweenOpacity(totoFreedOpacity, 0, 0.28));
+            fades.push(this.tweenScale(this.totoFreedNode, 1.04, 0.28));
+        }
+        const cageRootOpacity = this.ensureOpacity(this.cageRoot);
+        if (cageRootOpacity) {
+            fades.push(this.tweenOpacity(cageRootOpacity, 0, 0.28));
+        }
+
+        if (fades.length > 0) {
+            await Promise.all(fades);
+        }
+
+        if (this.totoFreedNode?.isValid) {
+            this.totoFreedNode.active = false;
+        }
+        if (this.cageRoot?.isValid) {
+            this.cageRoot.active = false;
+        }
+    }
+
+    private tweenOpacity(opacity: UIOpacity, to: number, duration: number): Promise<void> {
+        return new Promise<void>((resolve) => {
+            Tween.stopAllByTarget(opacity);
+            tween(opacity)
+                .to(duration, { opacity: to }, { easing: 'sineInOut' })
+                .call(() => resolve())
+                .start();
+        });
+    }
+
+    private tweenScale(node: Node | null, factor: number, duration: number): Promise<void> {
+        if (!node || !node.isValid) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+            Tween.stopAllByTarget(node);
+            tween(node)
+                .to(duration, { scale: this.scaled(node, factor) }, { easing: 'sineInOut' })
+                .call(() => resolve())
+                .start();
+        });
+    }
+
+    private async fadeTargets(targets: Node[], toOpacity: number, duration: number, deactivateAfter: boolean): Promise<void> {
+        const validTargets = targets.filter((target): target is Node => !!target && target.isValid);
+        if (validTargets.length === 0) return;
+
+        await Promise.all(validTargets.map(async (target) => {
+            const opacity = this.ensureOpacity(target);
+            if (!opacity) return;
+            await this.tweenOpacity(opacity, toOpacity, duration);
+            if (deactivateAfter) {
+                target.active = false;
+            }
+        }));
     }
 }

@@ -504,10 +504,8 @@ export class SaveTotoStateMachine extends Component {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
         this.audio?.stopWhimperLoop();
 
-        await Promise.all([
-            this.threatView.playPackshotTransition(),
-            this.hideGameplayLayers(),
-        ]);
+        await this.threatView.playPackshotTransition();
+        await this.hideGameplayLayers();
 
         // Баланс уже фактический после picks (credit + multiplier).
         const finalWin = this.slotView.getBalanceValue();

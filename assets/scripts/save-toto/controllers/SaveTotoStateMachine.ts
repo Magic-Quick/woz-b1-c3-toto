@@ -391,6 +391,13 @@ export class SaveTotoStateMachine extends Component {
         const winAmount = baseWins[(this.spinNumber - 1) % baseWins.length] || 50000;
         this.audio?.playPrizeChime();
 
+        // На первом спине огонь начинает тушиться: запускаем звук тушения
+        // вместе с prize chime, чтобы к моменту удара капель об огонь
+        // (после playDropToFire) пришлась вторая фаза звука — само шипение.
+        if (this.spinNumber === 1) {
+            this.audio?.playFireExtinguish();
+        }
+
         const reelWorld = this.slotController.node.worldPosition;
 
         // Монеты к balance label (если coin animation привязан).

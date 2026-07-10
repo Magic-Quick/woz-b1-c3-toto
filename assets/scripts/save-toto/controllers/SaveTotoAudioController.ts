@@ -8,6 +8,7 @@ type SaveTotoAudioCueKey =
     | 'backgroundAmbience'
     | 'happyMusic'
     | 'fireCrackle'
+    | 'fireExtinguish'
     | 'dogBarking'
     | 'dogWhimper'
     | 'reelSpinLoop'
@@ -23,6 +24,7 @@ const AUDIO_PATHS: Record<SaveTotoAudioCueKey, string> = {
     backgroundAmbience: 'save-toto/audio/sfx/background_ambience',
     happyMusic: 'save-toto/audio/sfx/happy_music',
     fireCrackle: 'save-toto/audio/sfx/fire_crackle',
+    fireExtinguish: 'save-toto/audio/sfx/fire_extinguish',
     dogBarking: 'save-toto/audio/sfx/dog_barking',
     dogWhimper: 'save-toto/audio/sfx/dog_whimper',
     reelSpinLoop: 'save-toto/audio/sfx/reel_spin_loop',
@@ -39,6 +41,7 @@ const PRELOAD_AUDIO_KEYS: SaveTotoAudioCueKey[] = [
     'backgroundAmbience',
     'happyMusic',
     'fireCrackle',
+    'fireExtinguish',
     'dogBarking',
     'dogWhimper',
     'reelSpinLoop',
@@ -173,6 +176,10 @@ export class SaveTotoAudioController extends Component {
 
     public playCoinShower(): void {
         void this.playOneShot('coinShower', 0.9);
+    }
+
+    public playFireExtinguish(): void {
+        void this.playOneShot('fireExtinguish', 0.85);
     }
 
     public playCtaJingle(): void {

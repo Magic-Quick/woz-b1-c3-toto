@@ -618,6 +618,11 @@ export class SaveTotoStateMachine extends Component {
         this.analytics.sendOnce({ name: SaveTotoEvents.EVT_TOTO_FREED, payload: { picks: this.picksDone } });
         this.audio?.stopWhimperLoop();
 
+        // Toto freed moment: jingle + barking должны играть СРАЗУ при освобождении,
+        // underscoring packshot transition — не после всего перехода в end-card.
+        this.audio?.playDogBarking();
+        this.audio?.playCtaJingle();
+
         await this.threatView.playPackshotTransition();
         await this.hideGameplayLayers();
 
@@ -658,8 +663,6 @@ export class SaveTotoStateMachine extends Component {
         this.state = SaveTotoState.EndCard;
         this.hudView.showCtaButton(false);
 
-        this.audio?.playDogBarking();
-        this.audio?.playCtaJingle();
         await this.endCardView.show(finalWin);
         await this.audio?.playHappyMusic();
         this.audio?.playCoinShower();

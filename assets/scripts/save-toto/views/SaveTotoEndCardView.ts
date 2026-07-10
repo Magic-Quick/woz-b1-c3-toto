@@ -1,12 +1,12 @@
 /**
  * Save Toto — view end-card слоя.
  *
- * Packshot: затемняющий overlay + logo + EndToto container.
- * Happy Toto проигрывается только через editor AnimationClip на отдельной ноде,
- * без legacy tween-bounce в коде.
+ * Packshot: затемняющий overlay + logo + статичный EndToto.
+ * Happy Toto проигрывается в payoff после cage-open; end-card сохраняет
+ * лёгкое transform-движение статичного спрайта.
  * CTA pulse на PlayNowButton.
  */
-import { _decorator, Animation, Component, Node, Label, tween, UIOpacity, Button } from 'cc';
+import { _decorator, Component, Node, Label, tween, UIOpacity, Button, Tween } from 'cc';
 import { SaveTotoCtaPulseAnimation } from '../animations/SaveTotoCtaPulseAnimation';
 import { createSaveTotoLogger } from '../common/SaveTotoLogger';
 
@@ -15,16 +15,12 @@ const { ccclass, property } = _decorator;
 @ccclass('SaveTotoEndCardView')
 export class SaveTotoEndCardView extends Component {
     private logger = createSaveTotoLogger('SaveTotoEndCardView');
-    private happyTotoAnimation: Animation | null = null;
 
     @property(Node)
     public root: Node = null!;
 
     @property(Node)
     public endTotoRoot: Node = null!;
-
-    @property(Node)
-    public happyTotoAnimatedNode: Node | null = null;
 
     @property(Label)
     public endWinLabel: Label | null = null;
@@ -36,19 +32,18 @@ export class SaveTotoEndCardView extends Component {
     public playNowButton: Button = null!;
 
     protected onLoad(): void {
-        this.happyTotoAnimation = this.happyTotoAnimatedNode?.getComponent(Animation) || null;
         this.validateBindings();
     }
 
     // FIX 2026-06-29: НЕ вызываем hideImmediate() в onLoad (см. OI-509).
     public hideImmediate(): void {
         if (this.root) this.root.active = false;
-        this.stopTotoHappy();
+        this.stopTotoStaticMotion();
         this.stopCtaPulse();
     }
 
     onDisable(): void {
-        this.stopTotoHappy();
+        this.stopTotoStaticMotion();
         this.stopCtaPulse();
     }
 
@@ -65,8 +60,7 @@ export class SaveTotoEndCardView extends Component {
         const op = this.root.getComponent(UIOpacity) || this.root.addComponent(UIOpacity);
         op.opacity = 0;
 
-        // EndTotoRoot уже полностью виден (cage исчез в packshot). Запускаем loop clip.
-        this.playTotoHappy();
+        this.playTotoStaticMotion();
 
         return new Promise<void>((resolve) => {
             tween(op)
@@ -80,7 +74,7 @@ export class SaveTotoEndCardView extends Component {
     }
 
     public hide(): void {
-        this.stopTotoHappy();
+        this.stopTotoStaticMotion();
         this.stopCtaPulse();
         if (this.root) this.root.active = false;
     }
@@ -98,29 +92,26 @@ export class SaveTotoEndCardView extends Component {
         if (this.endLegalLabel && !this.endLegalLabel.string.trim()) {
             this.logger.warn('Diagnostic: endLegalLabel is bound but empty.');
         }
-
-        if (this.happyTotoAnimatedNode && !this.happyTotoAnimation) {
-            this.logger.warn('Diagnostic: happyTotoAnimatedNode is bound but has no Animation component.');
-        }
     }
 
-    /** Happy-анимация Тото: editor-driven loop clip на HappyTotoAnimatedSprite. */
-    private playTotoHappy(): void {
-        if (!this.happyTotoAnimatedNode || !this.happyTotoAnimation) return;
-        this.stopTotoHappy();
+    /** Keeps the static end-card Toto lively without replacing its sprite frame. */
+    private playTotoStaticMotion(): void {
+        if (!this.endTotoRoot) return;
+        this.stopTotoStaticMotion();
 
-        const clipName = this.happyTotoAnimation.defaultClip?.name ?? null;
-        if (!clipName) {
-            this.logger.warn('Diagnostic: happy Toto default clip is not assigned.');
-            return;
-        }
-
-        this.happyTotoAnimatedNode.active = true;
-        this.happyTotoAnimation.play(clipName);
+        const base = this.endTotoRoot.scale.clone();
+        const pulseScale = base.clone().multiplyScalar(1.1);
+        tween(this.endTotoRoot)
+            .to(0.3, { scale: pulseScale }, { easing: 'sineInOut' })
+            .to(0.3, { scale: base }, { easing: 'sineInOut' })
+            .union()
+            .repeatForever()
+            .start();
     }
 
-    private stopTotoHappy(): void {
-        this.happyTotoAnimation?.stop();
+    private stopTotoStaticMotion(): void {
+        if (!this.endTotoRoot) return;
+        Tween.stopAllByTarget(this.endTotoRoot);
     }
 
     private playCtaPulse(): void {

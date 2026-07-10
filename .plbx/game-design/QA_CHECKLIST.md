@@ -59,6 +59,7 @@ date: "2026-07-09"
 - [ ] Fire + locks fade overlapped с cage swap (не sequential dead gaps); замки дрейфуют вверх при fade-out.
 - [ ] Cage swap: closed→open и toto-body→toto-full-body одновременно, с backOut scale pop (cage 0.88→1.0, Toto 0.82→1.0).
 - [ ] Toto joy bounce: hop вверх + scale pop + settle (freed-moment celebration, ~0.36s).
+- [ ] `happy-toto-loop-animation` запускается на `HappyTotoAnimatedSprite` после cage-open и завершается вместе с уходом Toto из threat-сцены.
 - [ ] Open cage drifts upward + fades out (не просто исчезает).
 - [ ] Toto floats upward to freedom + fades out перед EndCard takeover.
 - [ ] Breath delays между picks: ~0.35s между picks, ~0.5s перед payout (не instant).
@@ -70,6 +71,7 @@ date: "2026-07-09"
 - [ ] Balance/final value докручивается; `WIN` остаётся фиксированным visual label.
 - [ ] Payoff сопровождается glow/coin/positive FX.
 - [ ] End-card появляется после payout.
+- [ ] End-card показывает статичный `toto-full-body` с мягким scale-bounce; frame animation на нём не запускается.
 - [ ] CTA виден, крупный и находится в safe area.
 - [ ] Tap по CTA вызывает store adapter.
 - [ ] Повторный tap не вызывает несколько redirect одновременно.

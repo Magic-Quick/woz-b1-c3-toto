@@ -8,7 +8,7 @@
  * 3) открытая клетка исчезает — остаётся только собака,
  * 4) собака + CageRoot уходят перед EndCard.
  */
-import { _decorator, Component, Node, tween, Tween, UIOpacity, Vec3, TweenEasing } from 'cc';
+import { _decorator, Component, Node, tween, Tween, UIOpacity, Vec3, TweenEasing, Animation } from 'cc';
 import { SaveTotoThreatView as ISaveTotoThreatView } from '../interfaces/SaveTotoViews';
 import { SaveTotoFireLevel } from '../types';
 import { SaveTotoLockView } from './SaveTotoLockView';
@@ -59,9 +59,11 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
 
     private currentFireLevel: SaveTotoFireLevel = 4;
     private fireAnim: SaveTotoFireAnimation | null = null;
+    private totoFreedAnimation: Animation | null = null;
 
     onLoad(): void {
         this.fireAnim = this.fireNode?.getComponent(SaveTotoFireAnimation) || null;
+        this.totoFreedAnimation = this.totoFreedNode?.getComponent(Animation) || null;
         this.rememberBaseScale(this.cageRoot);
         this.rememberBaseScale(this.cageSwingRoot);
         this.rememberBaseScale(this.cageBaseNode);
@@ -230,6 +232,24 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
     }
 
     /**
+     * Запускает happy-loop AnimationClip на totoFreedNode явно (а не через
+     * playOnLoad). playOnLoad-автоплей при первой активации ноды mid-game
+     * сэмплирует клип до готовности биндинга SpriteFrame и валит превью
+     * `Cannot read properties of undefined (reading '0')` каждый кадр.
+     * Явный play() после активации ноды — рабочий паттерн (см. endcard).
+     */
+    private playTotoFreedAnimation(): void {
+        const anim = this.totoFreedAnimation;
+        if (!anim || !this.totoFreedNode?.isValid) return;
+        const clip = anim.defaultClip;
+        if (!clip) {
+            this.logger.warn('Diagnostic: totoFreedNode Animation has no default clip; happy loop will not play.');
+            return;
+        }
+        anim.play(clip.name);
+    }
+
+    /**
      * Stage 0: Subtle cage tremble — anticipation before the cage opens.
      * A quick squash/stretch cycle that signals "something is about to happen".
      */
@@ -345,6 +365,7 @@ export class SaveTotoThreatView extends Component implements ISaveTotoThreatView
         this.cageOpenNode.setScale(this.scaled(this.cageOpenNode, 0.88));
         this.totoFreedNode.active = true;
         this.totoFreedNode.setScale(this.scaled(this.totoFreedNode, 0.82));
+        this.playTotoFreedAnimation();
 
         const cageBaseOpacity = this.ensureOpacity(this.cageBaseNode);
         const cageOpenOpacity = this.ensureOpacity(this.cageOpenNode);

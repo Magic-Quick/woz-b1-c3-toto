@@ -46,7 +46,7 @@
     { "name": "cta_pulse", "path": "assets/animations/save-toto/ui/cta_pulse.anim", "bind": "HudLayer/CtaButton" },
     { "name": "money_dollar_pop", "path": "assets/animations/save-toto/fx/money_dollar_pop.anim", "bind": "SaveTotoMoneyBurst.prefab" }
   ],
-  "animationAnchors": ["LocksRoot", "FireRoot", "CoinFxRoot", "PackshotRoot", "OpenLockFxRoot", "EndTotoRoot"],
+  "animationAnchors": ["LocksRoot", "FireRoot", "CoinFxRoot", "PackshotRoot", "OpenLockFxRoot", "HappyTotoAnimatedSprite"],
   "nodes": [
     {
       "name": "BackgroundLayer", "parent": "Canvas", "children": [
@@ -137,7 +137,7 @@
       "name": "EndCardLayer", "parent": "Canvas", "active": false, "size": { "width": 1080, "height": 1920 }, "script": "SaveTotoEndCardView", "children": [
         { "name": "EndOverlay" },
         { "name": "EndLogo", "sprite": "assets/art/logos/logo_woz_slots.png" },
-        { "name": "EndTotoRoot", "sprite": "assets/art/characters/toto-body.png" },
+        { "name": "EndTotoRoot", "sprite": "assets/art/new/toto-full-body.png", "note": "Static end-card sprite; movement is transform-only." },
         { "name": "EndWinLabel", "component": "Label", "text": "10,000,000" },
         { "name": "PlayNowButton", "prefab": "SaveTotoCtaButton", "component": "Button" }
       ]

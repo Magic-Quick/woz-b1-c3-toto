@@ -9071,7 +9071,7 @@
         "__id__": 290
       }
     ],
-    "_active": false,
+    "_active": true,
     "_components": [
       {
         "__id__": 293
@@ -9764,8 +9764,8 @@
       "a": 255
     },
     "_spriteFrame": {
-      "__uuid__": "08ccdbe1-14dd-4f2e-9f0c-5d3be85734dd",
-      "__expectedType__": "cc.ImageAsset"
+      "__uuid__": "08ccdbe1-14dd-4f2e-9f0c-5d3be85734dd@f9941",
+      "__expectedType__": "cc.SpriteFrame"
     },
     "_type": 0,
     "_fillType": 0,
@@ -9777,7 +9777,7 @@
     },
     "_fillStart": 0,
     "_fillRange": 0,
-    "_isTrimmedMode": true,
+    "_isTrimmedMode": false,
     "_useGrayscale": false,
     "_atlas": null,
     "_id": "K9I2ZoXrPdNSt0sY7/+7gD"
